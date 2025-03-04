@@ -359,60 +359,10 @@ class GameTab(tk.Frame):
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
 
-    def delete_selected_main(self):
-        path = self.get_selected_instance_path()
-        if path and delete_instance(path):
-            self.populate_instances()
-
-    def clone_selected_main(self):
-        selected = self.tree.selection()
-        if selected:
-            item = self.tree.item(selected[0])
-            instance_name = item["values"][0]
-            clone_instance(instance_name, self.game)
-            self.populate_instances()
-
     def open_selected_main(self):
         path = self.get_selected_instance_path()
         if path:
             open_instance_folder(path)
-
-    def rename_selected_main(self):
-        selected = self.tree.selection()
-        if not selected:
-            return
-        item = self.tree.item(selected[0])
-        old_name = item["values"][0]
-
-        # Use custom_validated_askstring (defined elsewhere) to get the new name
-        def validate_instance_name(name):
-            if not name:
-                return "Instance name cannot be empty."
-            if name == LOCAL_INSTANCE:
-                return "Cannot use 'Global Instance' as an instance name."
-            if len(name) > 25:
-                return "Instance name cannot exceed 25 characters."
-            new_path = os.path.join(self.game["INSTANCES_DIR"], name)
-            if os.path.exists(new_path):
-                return "An instance with that name already exists."
-            return None
-
-        new_name = custom_validated_askstring(tk._default_root, "Rename Instance","Enter new instance name:", validate_instance_name)
-        if not new_name:
-            return
-        old_path = os.path.join(self.game["INSTANCES_DIR"], old_name)
-        new_path = os.path.join(self.game["INSTANCES_DIR"], new_name)
-        try:
-            os.rename(old_path, new_path)
-            # Update metadata if exists:
-            info_file = os.path.join(new_path, "instance_info.json")
-            if os.path.exists(info_file):
-                info = get_instance_info(new_path)
-                info["instance"] = new_name
-                write_instance_info(new_path, info)
-            self.populate_instances()
-        except Exception as e:
-            custom_error(tk._default_root, "Error", f"Failed to rename instance: {e}")
 
     def manage_instances_dialog(self):
         dialog = tk.Toplevel(self)
@@ -489,6 +439,12 @@ class GameTab(tk.Frame):
             new_path = os.path.join(self.game["INSTANCES_DIR"], new_name)
             try:
                 os.rename(old_path, new_path)
+
+                # Update the instance metadata with the new name
+                info = get_instance_info(new_path)
+                info["instance"] = new_name
+                write_instance_info(new_path, info)
+
                 refresh_list()
                 self.populate_instances()
             except Exception as e:
@@ -730,7 +686,6 @@ class GameTab(tk.Frame):
         refresh_list()
 
         version_menu = tk.Menu(listbox, tearoff=0)
-        version_menu.add_command(label="Rename", command=lambda: rename_selected_version())
         version_menu.add_command(label="Delete", command=lambda: delete_version())
         version_menu.add_command(label="Clone", command=lambda: in_clone_version())
         version_menu.add_command(label="Open Folder", command=lambda: open_version())
@@ -742,7 +697,6 @@ class GameTab(tk.Frame):
             ver = listbox.get(index)
             version_menu = tk.Menu(listbox, tearoff=0)
             if ver != LOCAL_VERSION:
-                version_menu.add_command(label="Rename", command=lambda: rename_selected_version())
                 version_menu.add_command(label="Delete", command=lambda: delete_version())
             version_menu.add_command(label="Clone", command=lambda: in_clone_version())
             version_menu.add_command(label="Open Folder", command=lambda: open_version())
@@ -782,6 +736,17 @@ class GameTab(tk.Frame):
             try:
                 os.rename(old_path, new_path)
                 custom_info(tk._default_root, "Rename", f"Version renamed to '{new_name}'.")
+
+                # Update metadata in all instances that reference the old version:
+                def update_instances_version(game, old_ver, new_ver):
+                    for inst in list_instances(game):
+                        inst_path = os.path.join(game["INSTANCES_DIR"], inst)
+                        info = get_instance_info(inst_path)
+                        if info.get("version") == old_ver:
+                            info["version"] = new_ver
+                            write_instance_info(inst_path, info)
+
+                update_instances_version(self.game, ver, new_name)
                 refresh_list()
             except Exception as e:
                 custom_error(tk._default_root, "Error", f"Failed to rename version: {e}")
