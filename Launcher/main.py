@@ -7,10 +7,31 @@ from tkinter import ttk, scrolledtext
 import json
 import datetime
 
-from config import LOCAL_VERSION, LOCAL_INSTANCE, games
+from config import LOCAL_VERSION, LOCAL_INSTANCE, games, INSTALL_PATHS_FILE
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
 from instance_info import write_instance_info, get_instance_info, get_global_instance_info, write_global_instance_info
+
+def read_install_paths():
+    if os.path.exists(INSTALL_PATHS_FILE):
+        with open(INSTALL_PATHS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def write_install_paths(paths):
+    with open(INSTALL_PATHS_FILE, "w") as f:
+        json.dump(paths, f, indent=4)
+
+def check_install_paths():
+    paths = read_install_paths()
+    updated_paths = {}
+    for game_name, path in paths.items():
+        exe_path = os.path.join(path, games[game_name]["EXE_NAME"])
+        if os.path.exists(exe_path):
+            updated_paths[game_name] = path
+    if updated_paths != paths:
+        write_install_paths(updated_paths)
+    return updated_paths
 
 
 def ensure_game_folders(game):
@@ -402,6 +423,10 @@ class GameTab(tk.Frame):
         self.sort_column = "instance"
         self.sort_reverse = False
 
+        install_paths = check_install_paths()
+        if game_name in install_paths:
+            self.game["POSSIBLE_PATHS"].insert(0, install_paths[game_name])
+
         if find_install_location(self.game) is None:
             self.load_no_install_ui()
         else:
@@ -417,11 +442,15 @@ class GameTab(tk.Frame):
         btn.pack(pady=10)
 
     def set_install_path(self):
-        path = custom_askstring(tk._default_root, "Set Installation Path", f"Enter the Steam installation path for {self.game_name}:")
+        path = custom_askstring(tk._default_root, "Set Installation Path",
+                                f"Enter the Steam installation path for {self.game_name}:")
         if path:
             exe_path = os.path.join(path, self.game["EXE_NAME"])
             if os.path.exists(exe_path):
                 self.game["POSSIBLE_PATHS"].insert(0, path)
+                install_paths = read_install_paths()
+                install_paths[self.game_name] = path
+                write_install_paths(install_paths)
                 for widget in self.winfo_children():
                     widget.destroy()
                 self.create_widgets()

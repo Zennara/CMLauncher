@@ -2,6 +2,7 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INSTALL_PATHS_FILE = os.path.join(BASE_DIR, "install_paths.json")
 
 LOCAL_VERSION = "Steam Version"
 LOCAL_INSTANCE = "Global Instance"
