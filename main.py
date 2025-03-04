@@ -143,6 +143,27 @@ def write_instance_info(instance_path, info):
         json.dump(info, f)
 
 
+# --- Global Instance Info --- #
+def get_global_instance_info(game):
+    """Retrieve last played and other info for the Global Instance."""
+    info_file = os.path.join(game["INSTANCES_DIR"], "Global_Instance_Info.json")
+    if os.path.exists(info_file):
+        try:
+            with open(info_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {"instance": "Global Instance", "version": game["VANILLA_VERSION"], "last_played": ""}
+    else:
+        return {"instance": "Global Instance", "version": game["VANILLA_VERSION"], "last_played": ""}
+
+
+def write_global_instance_info(game, info):
+    """Write Global Instance metadata to a file."""
+    info_file = os.path.join(game["INSTANCES_DIR"], "Global_Instance_Info.json")
+    with open(info_file, "w") as f:
+        json.dump(info, f)
+
+
 def create_instance(instance_name, version, game, force_copy=False):
     """
     Create a new instance with the given name and version.
@@ -460,7 +481,10 @@ class GameTab(tk.Frame):
         # First, add the Global Instance if the base game installation is detected.
         global_install = find_install_location(self.game)
         if global_install:
-            self.tree.insert("", "end", values=("Global Instance", self.game["VANILLA_VERSION"], ""))
+            global_info = get_global_instance_info(self.game)
+            self.tree.insert("", "end", values=(global_info.get("instance", "Global Instance"),
+                                                 global_info.get("version", self.game["VANILLA_VERSION"]),
+                                                 global_info.get("last_played", "")))
         # Add modded instances (exclude any folder named "Global Instance")
         for instance in list_instances(self.game):
             instance_path = os.path.join(self.game["INSTANCES_DIR"], instance)
@@ -505,7 +529,7 @@ class GameTab(tk.Frame):
         if selected:
             item = self.tree.item(selected[0])
             instance_name = item["values"][0]
-            # Always disable Delete if Global Instance is selected.
+            # Disable Delete if Global Instance is selected.
             if instance_name == "Global Instance":
                 self.delete_btn.config(state=tk.DISABLED)
             else:
@@ -540,8 +564,13 @@ class GameTab(tk.Frame):
             path = self.get_selected_instance_path()
             if path:
                 launch_game(path, self.game)
-                # For modded instances, update last played.
-                if instance_name != "Global Instance":
+                # For Global Instance, update last played in the global info file.
+                if instance_name == "Global Instance":
+                    global_info = get_global_instance_info(self.game)
+                    global_info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    write_global_instance_info(self.game, global_info)
+                # For modded instances, update instance_info.json.
+                else:
                     info_file = os.path.join(path, "instance_info.json")
                     info = {}
                     if os.path.exists(info_file):
@@ -565,8 +594,6 @@ class GameTab(tk.Frame):
             item = self.tree.item(selected[0])
             instance_name = item["values"][0]
             if instance_name == "Global Instance":
-                # This case should not occur since the Delete button is disabled,
-                # but we add an extra check.
                 messagebox.showerror("Error", "Cannot delete the Global Instance.")
                 return
         path = self.get_selected_instance_path()
@@ -625,7 +652,6 @@ class GameTab(tk.Frame):
                 return
             version_name = listbox.get(sel[0])
             if version_name == self.game["VANILLA_VERSION"]:
-                # Open the installed game folder for the vanilla version.
                 folder = find_install_location(self.game)
                 if not folder:
                     custom_error(dialog, "Error", "Installation not found.")
