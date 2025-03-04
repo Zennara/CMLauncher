@@ -2,7 +2,8 @@ import os
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import ttk
+import webbrowser
+from tkinter import ttk, scrolledtext
 import json
 import datetime
 
@@ -281,18 +282,115 @@ def clone_version(version_name, game):
 # ----------------------------
 # GUI Classes
 # ----------------------------
-
+import tkinter.font as tkFont
 class HomeTab(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        text = (
-            "Welcome to CMLauncher!\n\n"
-            "This launcher allows you to manage multiple instances of your games and apply "
-            "different versions/modifications.\n\n"
-            "Use the tabs above to manage each game."
+
+        # Create a scrolled text widget with word wrapping.
+        self.text_widget = scrolledtext.ScrolledText(self, wrap=tk.WORD, width=80, height=5)
+        self.text_widget.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
+
+        # Define fonts for different text sizes.
+        base_font = tkFont.Font(family="Helvetica", size=12)
+        h1_font = tkFont.Font(family="Helvetica", size=18, weight="bold")
+        h2_font = tkFont.Font(family="Helvetica", size=16, weight="bold")
+        h3_font = tkFont.Font(family="Helvetica", size=14, weight="bold")
+
+        # Configure text tags to simulate Markdown styling.
+        self.text_widget.tag_configure("h1", font=h1_font, spacing1=10, spacing3=10)
+        self.text_widget.tag_configure("h2", font=h2_font, spacing1=8, spacing3=8)
+        self.text_widget.tag_configure("h3", font=h3_font, spacing1=6, spacing3=6)
+        self.text_widget.tag_configure("body", font=base_font, spacing1=4, spacing3=4)
+
+        # Insert text with tags to simulate Markdown content.
+        self.text_widget.insert(tk.END, "CMLauncher\n", "h1")
+        self.text_widget.insert(tk.END,
+                                "Thank you for using CMLauncher! Below you will find some information regarding terminology, and how to use various features of the launcher.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+        self.text_widget.insert(tk.END, "Versions\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Versions are complete, full versions of the CM game and all of its required files. Your Steam "
+                                "Version is your currently installed Steam version of the game. This can change if you directly "
+                                "modify your game files without use of this launcher.\n", "body")
+
+        self.text_widget.insert(tk.END, "Instances\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Instances are created from versions. After creation, an instance's files can be edited (mods can be "
+                                "installed, as well) without affecting its associated Version.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "First Launch\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "On your first launch of CMLauncher, the launcher will attempt to locate your CM game directories "
+                                "automatically. If it fails, you will need to set up the installation path for each game manually on its "
+                                "respective tab.\n", "body")
+
+        self.text_widget.insert(tk.END, "General\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Modify your existing Versions/Instances or create new ones by clicking their respective buttons. "
+                                "From there, you can right-click to perform specific functions on them.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "Installing Mods\n", "h3")
+        self.text_widget.insert(tk.END, "To install a modded version to a launcher version follow these steps:\n",
+                                "body")
+        self.text_widget.insert(tk.END,
+                                "1. Create the appropriate base game Version for the modded client, if you have not already.\n",
+                                "body")
+        self.text_widget.insert(tk.END, "2. Create a new Instance for your mod, if you do not have one already. ",
+                                "body")
+        self.text_widget.insert(tk.END, "Tip: You can create new Instances for each mod version.\n", "body")
+        self.text_widget.insert(tk.END, "3. Open the folder location for your created Instance.\n", "body")
+        self.text_widget.insert(tk.END,
+                                "4. Copy and replace all of the mod files (or follow mod-specific installation instructions).\n",
+                                "body")
+        self.text_widget.insert(tk.END, "5. Select the instance, and play!\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "Report a Bug / Request Feature\n", "h2")
+        self.text_widget.insert(tk.END, "If you encounter a bug, or have a feature request, please report it at our issues page on GitHub.\n", "body")
+
+        self.text_widget.insert(tk.END, "Contributing\n", "h2")
+        self.text_widget.insert(tk.END, "Contributions are always welcome! You can do so on our GitHub.\n", "body")
+
+        # Make the text widget read-only.
+        self.text_widget.configure(state='disabled')
+
+        # Create a frame for the buttons (preserving your original button code).
+        button_frame = tk.Frame(self)
+        button_frame.pack(padx=20, pady=10)
+
+        # GitHub button that opens the GitHub page.
+        github_button = tk.Button(
+            button_frame,
+            text="GitHub",
+            command=lambda: webbrowser.open("https://github.com/zennara/CMLauncher")
         )
-        label = tk.Label(self, text=text, justify=tk.LEFT)
-        label.pack(padx=20, pady=20, anchor="w")
+        github_button.pack(side=tk.LEFT, padx=10)
+
+        github_button = tk.Button(
+            button_frame,
+            text="Issue/Request",
+            command=lambda: webbrowser.open("https://github.com/zennara/CMLauncher/issues")
+        )
+        github_button.pack(side=tk.LEFT, padx=10)
+
+        # Discord button that opens the Discord invite.
+        discord_button = tk.Button(
+            button_frame,
+            text="Discord",
+            command=lambda: webbrowser.open("https://discord.gg/cJH7DFb")
+        )
+        discord_button.pack(side=tk.LEFT, padx=10)
+
+        copyright_info = "© 2025 Zennara. Licensed under the Apache License, Version 2.0."
+        info_label = tk.Label(self, text=copyright_info, wraplength=500, justify=tk.LEFT)
+        info_label.pack(padx=20, pady=(10, 20))
 
 
 class GameTab(tk.Frame):
