@@ -374,7 +374,7 @@ class GameTab(tk.Frame):
 
         left_frame = tk.Frame(btn_frame)
         left_frame.pack(side=tk.LEFT, padx=5)
-        self.versions_btn = tk.Button(left_frame, text="Versions", command=lambda: create_new_version(self.game))
+        self.versions_btn = tk.Button(left_frame, text="Versions", command=self.manage_versions_dialog)
         self.versions_btn.pack(side=tk.LEFT, padx=2)
         self.new_instance_btn = tk.Button(left_frame, text="New Instance", command=self.new_instance_dialog)
         self.new_instance_btn.pack(side=tk.LEFT, padx=2)
@@ -599,6 +599,70 @@ class GameTab(tk.Frame):
         path = self.get_selected_instance_path()
         if path and delete_instance(path):
             self.populate_instances()
+
+    def manage_versions_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Manage Versions")
+        dialog.geometry("400x300")
+        dialog.transient(self)
+        dialog.grab_set()
+        center_window(dialog, self)  # Center the dialog relative to the main app window
+
+        # Listbox to display all versions
+        listbox = tk.Listbox(dialog)
+        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        def refresh_list():
+            listbox.delete(0, tk.END)
+            versions = get_version_options(self.game)
+            for v in versions:
+                listbox.insert(tk.END, v)
+
+        refresh_list()
+
+        # Button frame for actions
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=5)
+
+        def create_new():
+            self.new_version_dialog()
+            refresh_list()
+
+        def delete_selected():
+            sel = listbox.curselection()
+            if not sel:
+                messagebox.showerror("Error", "No version selected.", parent=dialog)
+                return
+            version_name = listbox.get(sel[0])
+            if version_name == self.game["VANILLA_VERSION"]:
+                messagebox.showerror("Error", "Cannot delete the vanilla version.", parent=dialog)
+                return
+            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
+            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete version '{version_name}'?"):
+                try:
+                    shutil.rmtree(version_path)
+                    refresh_list()
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to delete version: {e}", parent=dialog)
+
+        def open_folder():
+            sel = listbox.curselection()
+            if not sel:
+                messagebox.showerror("Error", "No version selected.", parent=dialog)
+                return
+            version_name = listbox.get(sel[0])
+            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
+            if os.path.exists(version_path):
+                subprocess.Popen(["explorer", version_path])
+            else:
+                messagebox.showerror("Error", "Version folder not found.", parent=dialog)
+
+        tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+        dialog.wait_window()
 
 
 class LauncherGUI(tk.Tk):
