@@ -217,18 +217,20 @@ def write_instance_info(instance_path, info):
 def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
-    It is created by copying the GAME_CACHE and then overlaying version files.
-    Also writes instance metadata.
-    Returns the instance path on success; if the instance already exists, returns "exists";
-    or returns an error message string if something went wrong.
+    Instead of using the base game cache, this copies all files from the version folder.
+    It writes instance metadata and returns the instance path on success.
+    If the instance already exists, returns "exists", or returns an error message if something goes wrong.
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
         return "exists"
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
-        shutil.copytree(game["GAME_CACHE"], instance_path)
-        overlay_version_files(instance_path, version, game)
+        # Use the version folder as the source folder.
+        version_path = os.path.join(game["VERSIONS_DIR"], version)
+        if not os.path.exists(version_path):
+            return f"Version folder for '{version}' not found!"
+        shutil.copytree(version_path, instance_path)
         info = {
             "instance": instance_name,
             "version": version,
