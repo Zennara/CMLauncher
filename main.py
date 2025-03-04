@@ -2,8 +2,7 @@ import os
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import ttk
-from tkinter import messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog
 
 # Set BASE_DIR to the folder where this script is located.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -81,7 +80,7 @@ class CacheDialog(tk.Toplevel):
         self.geometry("400x200")
         self.resizable(False, False)
         self.transient(master)
-        self.grab_set()  # Make the dialog modal.
+        self.grab_set()  # Make modal
         self.attributes("-topmost", True)
         self.after_idle(lambda: self.attributes("-topmost", False))
 
@@ -148,10 +147,11 @@ def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
     It is created by copying the GAME_CACHE and then overlaying version files.
+    Returns the instance path on success; if the instance already exists, returns "exists";
+    or returns an error message string if something went wrong.
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
-        # Instead of a popup, return an error message string.
         return "exists"
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
@@ -216,6 +216,45 @@ def get_version_options(game):
     return options
 
 
+def create_new_version(game):
+    """
+    Open a modal dialog to create a new version for the game.
+    Returns None if cancelled, or the new version name on success.
+    """
+    dialog = tk.Toplevel()
+    dialog.title("Create New Version")
+    dialog.geometry("300x150")
+    dialog.transient()
+    dialog.grab_set()
+
+    tk.Label(dialog, text="Version Name:").pack(pady=5)
+    name_entry = tk.Entry(dialog)
+    name_entry.pack(pady=5)
+
+    error_label = tk.Label(dialog, text="", fg="red")
+    error_label.pack(pady=5)
+
+    def on_create():
+        version_name = name_entry.get().strip()
+        if not version_name:
+            error_label.config(text="Version name cannot be empty.")
+            return
+        version_path = os.path.join(game["VERSIONS_DIR"], version_name)
+        if os.path.exists(version_path):
+            error_label.config(text="Version already exists.")
+            return
+        try:
+            os.makedirs(version_path)
+            # Optionally, you could pre-populate the folder with files.
+            dialog.destroy()
+        except Exception as e:
+            error_label.config(text=f"Error: {e}")
+
+    tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
+    dialog.wait_window()
+    return None  # We don't need to return the version; the folder is now created.
+
+
 # ----------------------------
 # GUI Classes
 # ----------------------------
@@ -249,21 +288,33 @@ class GameTab(tk.Frame):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
         header.pack(pady=5)
 
-        # Instance list and controls
+        # Button frame with three groups: left (Versions, New Instance), center (Play), right (Open Folder, Delete)
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(fill=tk.X, pady=5)
+
+        left_frame = tk.Frame(btn_frame)
+        left_frame.pack(side=tk.LEFT, padx=5)
+        self.versions_btn = tk.Button(left_frame, text="Versions", command=self.new_version_dialog)
+        self.versions_btn.pack(side=tk.LEFT, padx=2)
+        self.new_instance_btn = tk.Button(left_frame, text="New Instance", command=self.new_instance_dialog)
+        self.new_instance_btn.pack(side=tk.LEFT, padx=2)
+
+        center_frame = tk.Frame(btn_frame)
+        center_frame.pack(side=tk.LEFT, expand=True)
+        self.play_btn = tk.Button(center_frame, text="Play", command=self.start_instance)
+        self.play_btn.pack()
+
+        right_frame = tk.Frame(btn_frame)
+        right_frame.pack(side=tk.RIGHT, padx=5)
+        self.open_btn = tk.Button(right_frame, text="Open Folder", command=self.open_instance)
+        self.open_btn.pack(side=tk.LEFT, padx=2)
+        self.delete_btn = tk.Button(right_frame, text="Delete", command=self.delete_instance)
+        self.delete_btn.pack(side=tk.LEFT, padx=2)
+
+        # Instance list
         self.instance_listbox = tk.Listbox(self, height=10)
         self.instance_listbox.pack(fill=tk.BOTH, expand=True, padx=20)
         self.instance_listbox.bind("<<ListboxSelect>>", self.on_instance_select)
-
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(pady=5)
-        new_btn = tk.Button(btn_frame, text="New Instance", command=self.new_instance_dialog)
-        new_btn.grid(row=0, column=0, padx=5)
-        self.start_btn = tk.Button(btn_frame, text="Start", command=self.start_instance, state=tk.DISABLED)
-        self.start_btn.grid(row=0, column=1, padx=5)
-        self.open_btn = tk.Button(btn_frame, text="Open Folder", command=self.open_instance, state=tk.DISABLED)
-        self.open_btn.grid(row=0, column=2, padx=5)
-        self.delete_btn = tk.Button(btn_frame, text="Delete", command=self.delete_instance, state=tk.DISABLED)
-        self.delete_btn.grid(row=0, column=3, padx=5)
 
     def check_base_game(self):
         # Check if base game is cached (i.e. GAME_CACHE exists and is non-empty)
@@ -274,7 +325,6 @@ class GameTab(tk.Frame):
             self.hide_setup_overlay()
 
     def show_setup_overlay(self):
-        # Overlay a frame covering the tab that disables controls and prompts for setup.
         if self.overlay is None:
             self.overlay = tk.Frame(self, bg="light grey")
             self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -292,7 +342,6 @@ class GameTab(tk.Frame):
 
     def open_cache_dialog(self):
         dlg = CacheDialog(self, self.game_name, self.game)
-        # After dialog closes, re-check the cache.
         self.check_base_game()
         self.populate_instances()
 
@@ -307,7 +356,6 @@ class GameTab(tk.Frame):
         name_entry = tk.Entry(dialog)
         name_entry.pack(pady=5)
 
-        # Inline error message label.
         error_label = tk.Label(dialog, text="", fg="red")
         error_label.pack(pady=5)
 
@@ -323,21 +371,50 @@ class GameTab(tk.Frame):
             if not instance_name:
                 error_label.config(text="Instance name cannot be empty.")
                 return
-            # Check inline if instance already exists.
             if os.path.exists(os.path.join(self.game["INSTANCES_DIR"], instance_name)):
                 error_label.config(text="An instance with that name already exists.")
                 return
             version = selected_version.get()
             result = create_instance(instance_name, version, self.game)
-            if result is None:
+            if result is None or result == "exists":
                 error_label.config(text="Failed to create instance.")
-            elif result == "exists":
-                error_label.config(text="An instance with that name already exists.")
             else:
                 self.populate_instances()
                 dialog.destroy()
 
         tk.Button(dialog, text="Create Instance", command=on_create).pack(pady=10)
+        dialog.wait_window()
+
+    def new_version_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Create New Version")
+        dialog.geometry("300x150")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="Version Name:").pack(pady=5)
+        name_entry = tk.Entry(dialog)
+        name_entry.pack(pady=5)
+
+        error_label = tk.Label(dialog, text="", fg="red")
+        error_label.pack(pady=5)
+
+        def on_create():
+            version_name = name_entry.get().strip()
+            if not version_name:
+                error_label.config(text="Version name cannot be empty.")
+                return
+            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
+            if os.path.exists(version_path):
+                error_label.config(text="Version already exists.")
+                return
+            try:
+                os.makedirs(version_path)
+                dialog.destroy()
+            except Exception as e:
+                error_label.config(text=f"Error: {e}")
+
+        tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
         dialog.wait_window()
 
     def populate_instances(self):
@@ -354,7 +431,7 @@ class GameTab(tk.Frame):
 
     def set_action_buttons_state(self, state):
         st = tk.NORMAL if state else tk.DISABLED
-        self.start_btn.config(state=st)
+        self.play_btn.config(state=st)
         self.open_btn.config(state=st)
         self.delete_btn.config(state=st)
 
