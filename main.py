@@ -68,6 +68,33 @@ def center_window(window, parent):
     window.geometry(f"+{x}+{y}")
 
 
+def custom_validated_askstring(parent, title, prompt, validation_func):
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.geometry("300x180")
+    dlg.transient(parent)
+    dlg.grab_set()
+    center_window(dlg, parent)
+    tk.Label(dlg, text=prompt, wraplength=280, justify=tk.LEFT).pack(pady=5)
+    entry_var = tk.StringVar()
+    entry = tk.Entry(dlg, textvariable=entry_var)
+    entry.pack(pady=5)
+    error_label = tk.Label(dlg, text="", fg="red")
+    error_label.pack(pady=5)
+    result = [None]
+    def on_ok():
+        value = entry_var.get().strip()
+        error = validation_func(value)
+        if error:
+            error_label.config(text=error)
+        else:
+            result[0] = value
+            dlg.destroy()
+    tk.Button(dlg, text="OK", command=on_ok, width=10).pack(pady=5)
+    dlg.wait_window()
+    return result[0]
+
+
 def custom_askstring(parent, title, prompt):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
@@ -356,16 +383,22 @@ def clone_instance(instance_name, game):
             return
     else:
         source = os.path.join(game["INSTANCES_DIR"], instance_name)
-    new_name = custom_askstring(tk._default_root, "Clone Instance", "Enter new instance name:")
-    if new_name == "Global Instance":
-        custom_error(tk._default_root, "Error", "Cannot use 'Global Instance' as an instance name.")
-        return
+    def validate_instance_name(name):
+        if not name:
+            return "Instance name cannot be empty."
+        if name == "Global Instance":
+            return "Cannot use 'Global Instance' as an instance name."
+        if len(name) > 25:
+            return "Instance name cannot exceed 25 characters."
+        new_path = os.path.join(game["INSTANCES_DIR"], name)
+        if os.path.exists(new_path):
+            return "An instance with that name already exists."
+        return None
+    new_name = custom_validated_askstring(tk._default_root, "Clone Instance",
+                                          "Enter new instance name:", validate_instance_name)
     if not new_name:
         return
     new_path = os.path.join(game["INSTANCES_DIR"], new_name)
-    if os.path.exists(new_path):
-        custom_error(tk._default_root, "Error", "An instance with that name already exists.")
-        return
     try:
         shutil.copytree(source, new_path)
         info = get_instance_info(new_path)
@@ -384,16 +417,22 @@ def clone_version(version_name, game):
             return
     else:
         source = os.path.join(game["VERSIONS_DIR"], version_name)
-    new_name = custom_askstring(tk._default_root, "Clone Version", "Enter new version name:")
-    if new_name == game["VANILLA_VERSION"]:
-        custom_error(tk._default_root, "Error", "Cannot use 'Steam Version' as a version name.")
-        return
+    def validate_version_name(name):
+        if not name:
+            return "Version name cannot be empty."
+        if name == game["VANILLA_VERSION"]:
+            return "Cannot use 'Steam Version' as a version name."
+        if len(name) > 25:
+            return "Version name cannot exceed 25 characters."
+        new_path = os.path.join(game["VERSIONS_DIR"], name)
+        if os.path.exists(new_path):
+            return "A version with that name already exists."
+        return None
+    new_name = custom_validated_askstring(tk._default_root, "Clone Version",
+                                          "Enter new version name:", validate_version_name)
     if not new_name:
         return
     new_path = os.path.join(game["VERSIONS_DIR"], new_name)
-    if os.path.exists(new_path):
-        custom_error(tk._default_root, "Error", "A version with that name already exists.")
-        return
     try:
         shutil.copytree(source, new_path)
         custom_info(tk._default_root, "Clone", f"Version cloned as '{new_name}'.")
