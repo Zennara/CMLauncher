@@ -82,6 +82,18 @@ def center_window(window, parent):
     window.geometry(f"+{x}+{y}")
 
 
+def custom_error(parent, title, message):
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.geometry("300x150")
+    dlg.transient(parent)
+    dlg.grab_set()
+    center_window(dlg, parent)
+    tk.Label(dlg, text=message, wraplength=280, justify=tk.LEFT, fg="red").pack(pady=20)
+    tk.Button(dlg, text="OK", command=dlg.destroy, width=10).pack(pady=10)
+    dlg.wait_window()
+
+
 def centered_askyesno(parent, title, message):
     result = [None]
     dialog = tk.Toplevel(parent)
@@ -620,7 +632,7 @@ class GameTab(tk.Frame):
 
         refresh_list()
 
-        # Button frame for actions
+        # Create button frame
         btn_frame = tk.Frame(dialog)
         btn_frame.pack(pady=5)
 
@@ -631,11 +643,11 @@ class GameTab(tk.Frame):
         def delete_selected():
             sel = listbox.curselection()
             if not sel:
-                messagebox.showerror("Error", "No version selected.", parent=dialog)
+                custom_error(dialog, "Error", "No version selected.")
                 return
             version_name = listbox.get(sel[0])
             if version_name == self.game["VANILLA_VERSION"]:
-                messagebox.showerror("Error", "Cannot delete the vanilla version.", parent=dialog)
+                custom_error(dialog, "Error", "Cannot delete the vanilla version.")
                 return
             version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
             if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete version '{version_name}'?"):
@@ -643,24 +655,43 @@ class GameTab(tk.Frame):
                     shutil.rmtree(version_path)
                     refresh_list()
                 except Exception as e:
-                    messagebox.showerror("Error", f"Failed to delete version: {e}", parent=dialog)
+                    custom_error(dialog, "Error", f"Failed to delete version: {e}")
 
         def open_folder():
             sel = listbox.curselection()
             if not sel:
-                messagebox.showerror("Error", "No version selected.", parent=dialog)
+                custom_error(dialog, "Error", "No version selected.")
                 return
             version_name = listbox.get(sel[0])
-            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
-            if os.path.exists(version_path):
-                subprocess.Popen(["explorer", version_path])
+            if version_name == self.game["VANILLA_VERSION"]:
+                folder = self.game["GAME_CACHE"]
             else:
-                messagebox.showerror("Error", "Version folder not found.", parent=dialog)
+                folder = os.path.join(self.game["VERSIONS_DIR"], version_name)
+            if os.path.exists(folder):
+                subprocess.Popen(["explorer", folder])
+            else:
+                custom_error(dialog, "Error", "Folder not found.")
 
+        # Create buttons and store Delete button for later state updates.
         tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
+        btn_delete = tk.Button(btn_frame, text="Delete Selected", command=delete_selected)
+        btn_delete.pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+        # Bind selection change to enable/disable Delete button.
+        def on_select(event):
+            sel = listbox.curselection()
+            if sel:
+                version_name = listbox.get(sel[0])
+                if version_name == self.game["VANILLA_VERSION"]:
+                    btn_delete.config(state=tk.DISABLED)
+                else:
+                    btn_delete.config(state=tk.NORMAL)
+            else:
+                btn_delete.config(state=tk.DISABLED)
+
+        listbox.bind("<<ListboxSelect>>", on_select)
 
         dialog.wait_window()
 
