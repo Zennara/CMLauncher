@@ -1,8 +1,12 @@
 import tkinter as tk
 
+from config import QUESTION_ICON, EXCLAMATION_ICON, ERROR_ICON
+
+
 def center_window(window, parent):
-    window.update_idletasks()
+    window.update_idletasks()  # Ensure all geometry calculations are done
     parent.update_idletasks()
+    window.withdraw()  # Hide the window while calculating
     parent_x = parent.winfo_rootx()
     parent_y = parent.winfo_rooty()
     parent_width = parent.winfo_width()
@@ -12,12 +16,14 @@ def center_window(window, parent):
     x = parent_x + (parent_width - window_width) // 2
     y = parent_y + (parent_height - window_height) // 2
     window.geometry(f"+{x}+{y}")
+    window.deiconify()  # Show the window again
 
 
 def custom_validated_askstring(parent, title, prompt, validation_func):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
     dlg.geometry("300x180")
+    dlg.iconbitmap(QUESTION_ICON)  # Set the icon
     dlg.transient(parent)
     dlg.grab_set()
     center_window(dlg, parent)
@@ -45,6 +51,7 @@ def custom_askstring(parent, title, prompt):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
     dlg.geometry("300x150")
+    dlg.iconbitmap(QUESTION_ICON)  # Set the icon
     dlg.transient(parent)
     dlg.grab_set()
     center_window(dlg, parent)
@@ -64,6 +71,7 @@ def custom_info(parent, title, message):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
     dlg.geometry("300x150")
+    dlg.iconbitmap(EXCLAMATION_ICON)  # Set the icon
     dlg.transient(parent)
     dlg.grab_set()
     center_window(dlg, parent)
@@ -76,6 +84,7 @@ def custom_error(parent, title, message):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
     dlg.geometry("300x150")
+    dlg.iconbitmap(ERROR_ICON)  # Set the icon
     dlg.transient(parent)
     dlg.grab_set()
     center_window(dlg, parent)
@@ -89,6 +98,7 @@ def centered_askyesno(parent, title, message, height=150, width=300):
     dialog = tk.Toplevel(parent)
     dialog.title(title)
     dialog.geometry(f"{width}x{height}")
+    dialog.iconbitmap(QUESTION_ICON)  # Set the icon
     dialog.transient(parent)
     dialog.grab_set()
     center_window(dialog, parent)

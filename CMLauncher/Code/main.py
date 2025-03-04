@@ -2,14 +2,38 @@ import os
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import ttk
+import webbrowser
+from tkinter import ttk, scrolledtext
+import tkinter.font as tkFont
 import json
 import datetime
 
-from config import LOCAL_VERSION, LOCAL_INSTANCE, games
+from config import MANAGE_ICON, PLUS_ICON, BASE_ICON, VERSION
+from config import LOCAL_VERSION, LOCAL_INSTANCE, games, INSTALL_PATHS_FILE
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
 from instance_info import write_instance_info, get_instance_info, get_global_instance_info, write_global_instance_info
+
+def read_install_paths():
+    if os.path.exists(INSTALL_PATHS_FILE):
+        with open(INSTALL_PATHS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def write_install_paths(paths):
+    with open(INSTALL_PATHS_FILE, "w") as f:
+        json.dump(paths, f, indent=4)
+
+def check_install_paths():
+    paths = read_install_paths()
+    updated_paths = {}
+    for game_name, path in paths.items():
+        exe_path = os.path.join(path, games[game_name]["EXE_NAME"])
+        if os.path.exists(exe_path):
+            updated_paths[game_name] = path
+    if updated_paths != paths:
+        write_install_paths(updated_paths)
+    return updated_paths
 
 
 def ensure_game_folders(game):
@@ -153,6 +177,7 @@ def new_version_dialog(game, parent):
     dialog = tk.Toplevel(parent)
     dialog.title("Create New Version")
     dialog.geometry("300x150")
+    dialog.iconbitmap(MANAGE_ICON)
     dialog.transient(parent)
     dialog.grab_set()
     center_window(dialog, parent)
@@ -281,18 +306,114 @@ def clone_version(version_name, game):
 # ----------------------------
 # GUI Classes
 # ----------------------------
-
 class HomeTab(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        text = (
-            "Welcome to CMLauncher!\n\n"
-            "This launcher allows you to manage multiple instances of your games and apply "
-            "different versions/modifications.\n\n"
-            "Use the tabs above to manage each game."
+
+        # Create a scrolled text widget with word wrapping.
+        self.text_widget = scrolledtext.ScrolledText(self, wrap=tk.WORD, width=80, height=5)
+        self.text_widget.pack(padx=20, pady=20, fill=tk.BOTH, expand=True)
+
+        # Define fonts for different text sizes.
+        base_font = tkFont.Font(family="Helvetica", size=12)
+        h1_font = tkFont.Font(family="Helvetica", size=18, weight="bold")
+        h2_font = tkFont.Font(family="Helvetica", size=16, weight="bold")
+        h3_font = tkFont.Font(family="Helvetica", size=14, weight="bold")
+
+        # Configure text tags to simulate Markdown styling.
+        self.text_widget.tag_configure("h1", font=h1_font, spacing1=10, spacing3=10)
+        self.text_widget.tag_configure("h2", font=h2_font, spacing1=8, spacing3=8)
+        self.text_widget.tag_configure("h3", font=h3_font, spacing1=6, spacing3=6)
+        self.text_widget.tag_configure("body", font=base_font, spacing1=4, spacing3=4)
+
+        # Insert text with tags to simulate Markdown content.
+        self.text_widget.insert(tk.END, "CMLauncher\n", "h1")
+        self.text_widget.insert(tk.END,
+                                "Thank you for using CMLauncher! Below you will find some information regarding terminology, and how to use various features of the launcher.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+        self.text_widget.insert(tk.END, "Versions\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Versions are complete, full versions of the CM game and all of its required files. Your Steam "
+                                "Version is your currently installed Steam version of the game. This can change if you directly "
+                                "modify your game files without use of this launcher.\n", "body")
+
+        self.text_widget.insert(tk.END, "Instances\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Instances are created from versions. After creation, an instance's files can be edited (mods can be "
+                                "installed, as well) without affecting its associated Version.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "First Launch\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "On your first launch of CMLauncher, the launcher will attempt to locate your CM game directories "
+                                "automatically. If it fails, you will need to set up the installation path for each game manually on its "
+                                "respective tab.\n", "body")
+
+        self.text_widget.insert(tk.END, "General\n", "h3")
+        self.text_widget.insert(tk.END,
+                                "Modify your existing Versions/Instances or create new ones by clicking their respective buttons. "
+                                "From there, you can right-click to perform specific functions on them.\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "Installing Mods\n", "h3")
+        self.text_widget.insert(tk.END, "To install a modded version to a launcher version follow these steps:\n",
+                                "body")
+        self.text_widget.insert(tk.END,
+                                "1. Create the appropriate base game Version for the modded client, if you have not already.\n",
+                                "body")
+        self.text_widget.insert(tk.END, "2. Create a new Instance for your mod, if you do not have one already. ",
+                                "body")
+        self.text_widget.insert(tk.END, "Tip: You can create new Instances for each mod version.\n", "body")
+        self.text_widget.insert(tk.END, "3. Open the folder location for your created Instance.\n", "body")
+        self.text_widget.insert(tk.END,
+                                "4. Copy and replace all of the mod files (or follow mod-specific installation instructions).\n",
+                                "body")
+        self.text_widget.insert(tk.END, "5. Select the instance, and play!\n", "body")
+
+        self.text_widget.insert(tk.END, "\n")
+
+        self.text_widget.insert(tk.END, "Report a Bug / Request Feature\n", "h2")
+        self.text_widget.insert(tk.END, "If you encounter a bug, or have a feature request, please report it at our issues page on GitHub.\n", "body")
+
+        self.text_widget.insert(tk.END, "Contributing\n", "h2")
+        self.text_widget.insert(tk.END, "Contributions are always welcome! You can do so on our GitHub.\n", "body")
+
+        # Make the text widget read-only.
+        self.text_widget.configure(state='disabled')
+
+        # Create a frame for the buttons (preserving your original button code).
+        button_frame = tk.Frame(self)
+        button_frame.pack(padx=20, pady=10)
+
+        # GitHub button that opens the GitHub page.
+        github_button = tk.Button(
+            button_frame,
+            text="GitHub",
+            command=lambda: webbrowser.open("https://github.com/zennara/CMLauncher")
         )
-        label = tk.Label(self, text=text, justify=tk.LEFT)
-        label.pack(padx=20, pady=20, anchor="w")
+        github_button.pack(side=tk.LEFT, padx=10)
+
+        github_button = tk.Button(
+            button_frame,
+            text="Issue/Request",
+            command=lambda: webbrowser.open("https://github.com/zennara/CMLauncher/issues")
+        )
+        github_button.pack(side=tk.LEFT, padx=10)
+
+        # Discord button that opens the Discord invite.
+        discord_button = tk.Button(
+            button_frame,
+            text="Discord",
+            command=lambda: webbrowser.open("https://discord.gg/cJH7DFb")
+        )
+        discord_button.pack(side=tk.LEFT, padx=10)
+
+        copyright_info = "© 2025 Zennara. Licensed under the Apache License, Version 2.0."
+        info_label = tk.Label(self, text=copyright_info, wraplength=500, justify=tk.LEFT)
+        info_label.pack(padx=20, pady=(10, 20))
 
 
 class GameTab(tk.Frame):
@@ -303,6 +424,10 @@ class GameTab(tk.Frame):
         ensure_game_folders(self.game)
         self.sort_column = "instance"
         self.sort_reverse = False
+
+        install_paths = check_install_paths()
+        if game_name in install_paths:
+            self.game["POSSIBLE_PATHS"].insert(0, install_paths[game_name])
 
         if find_install_location(self.game) is None:
             self.load_no_install_ui()
@@ -319,11 +444,15 @@ class GameTab(tk.Frame):
         btn.pack(pady=10)
 
     def set_install_path(self):
-        path = custom_askstring(tk._default_root, "Set Installation Path", f"Enter the Steam installation path for {self.game_name}:")
+        path = custom_askstring(tk._default_root, "Set Installation Path",
+                                f"Enter the Steam installation path for {self.game_name}:")
         if path:
             exe_path = os.path.join(path, self.game["EXE_NAME"])
             if os.path.exists(exe_path):
                 self.game["POSSIBLE_PATHS"].insert(0, path)
+                install_paths = read_install_paths()
+                install_paths[self.game_name] = path
+                write_install_paths(install_paths)
                 for widget in self.winfo_children():
                     widget.destroy()
                 self.create_widgets()
@@ -333,27 +462,16 @@ class GameTab(tk.Frame):
 
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
-        header.pack(pady=5)
+        header.pack(pady=(15, 1))
 
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(fill=tk.X, pady=5)
+        bottom_frame = tk.Frame(self)
+        bottom_frame.pack(fill=tk.X, pady=10)
 
-        left_frame = tk.Frame(btn_frame)
-        left_frame.pack(side=tk.LEFT, padx=5)
-        self.versions_btn = tk.Button(left_frame, text="Versions", command=self.manage_versions_dialog)
-        self.versions_btn.pack(side=tk.LEFT, padx=2)
-        self.instances_btn = tk.Button(left_frame, text="Instances", command=self.manage_instances_dialog)
-        self.instances_btn.pack(side=tk.LEFT, padx=2)
+        self.versions_btn = tk.Button(bottom_frame, text="Versions", command=self.manage_versions_dialog)
+        self.versions_btn.pack(side=tk.RIGHT, padx=20)
 
-        center_frame = tk.Frame(btn_frame)
-        center_frame.pack(side=tk.LEFT, expand=True)
-        self.play_btn = tk.Button(center_frame, text="   Play   ", command=self.start_instance, state=tk.DISABLED)
-        self.play_btn.pack()
-
-        right_frame = tk.Frame(btn_frame)
-        right_frame.pack(side=tk.RIGHT, padx=5)
-        self.open_btn = tk.Button(right_frame, text="Open Folder", command=self.open_instance)
-        self.open_btn.pack(side=tk.LEFT, padx=2)
+        self.instances_btn = tk.Button(bottom_frame, text="Instances", command=self.manage_instances_dialog)
+        self.instances_btn.pack(side=tk.LEFT, padx=20)
 
         self.tree = ttk.Treeview(self, columns=("instance", "version", "last_played"), show="headings")
         self.tree.heading("instance", text="Instance", command=lambda: self.sort_by("instance"))
@@ -365,6 +483,13 @@ class GameTab(tk.Frame):
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
 
+        self.play_btn = tk.Button(self, text="   Play   ", command=self.start_instance, state=tk.DISABLED,
+                                  font=("Arial", 18))
+        self.play_btn.pack(pady=(10, 0))
+
+        self.selected_instance_label = tk.Label(self, text="No instance selected", font=("Arial", 10))
+        self.selected_instance_label.pack(pady=(5, 15))
+
     def open_selected_main(self):
         path = self.get_selected_instance_path()
         if path:
@@ -374,6 +499,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Manage Instances")
         dialog.geometry("400x300")
+        dialog.iconbitmap(MANAGE_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -513,6 +639,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Create New Instance")
         dialog.geometry("300x200")
+        dialog.iconbitmap(PLUS_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -621,15 +748,17 @@ class GameTab(tk.Frame):
 
     def on_instance_select(self, event):
         if self.tree.selection():
+            item = self.tree.item(self.tree.selection()[0])
+            inst_name = str(item["values"][0])
+            self.selected_instance_label.config(text=inst_name)
             self.play_btn.config(state=tk.NORMAL)
-            self.open_btn.config(state=tk.NORMAL)
         else:
-            self.set_action_buttons_state(False)
+            self.selected_instance_label.config(text="No instance selected")
+            self.play_btn.config(state=tk.DISABLED)
 
     def set_action_buttons_state(self, state):
         st = tk.NORMAL if state else tk.DISABLED
         self.play_btn.config(state=st)
-        self.open_btn.config(state=st)
 
     def get_selected_instance_path(self):
         selected = self.tree.selection()
@@ -676,6 +805,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Manage Versions")
         dialog.geometry("400x300")
+        dialog.iconbitmap(MANAGE_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -811,8 +941,9 @@ class GameTab(tk.Frame):
 class LauncherGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CMLauncher")
+        self.title(f"CMLauncher {VERSION}")
         self.geometry("600x500")
+        self.iconbitmap(BASE_ICON)
         self.create_tabs()
 
     def create_tabs(self):
