@@ -80,11 +80,11 @@ def custom_error(parent, title, message):
     dlg.wait_window()
 
 
-def centered_askyesno(parent, title, message):
+def centered_askyesno(parent, title, message, height=150, width=300):
     result = [None]
     dialog = tk.Toplevel(parent)
     dialog.title(title)
-    dialog.geometry("300x150")
+    dialog.geometry(f"{width}x{height}")
     dialog.transient(parent)
     dialog.grab_set()
     center_window(dialog, parent)
@@ -143,13 +143,14 @@ def write_instance_info(instance_path, info):
         json.dump(info, f)
 
 
-def create_instance(instance_name, version, game):
+def create_instance(instance_name, version, game, force_copy=False):
     """
     Create a new instance with the given name and version.
     For modded instances, this copies all files from the version folder.
-    Note: The vanilla (Steam) version is handled as a special case and is not copied.
-    It writes instance metadata and returns the instance path on success.
-    If the instance already exists, returns "exists", or returns an error message if something goes wrong.
+    Note: When creating an instance with the vanilla (Steam) version,
+    if force_copy is False, the function will not copy (as that is reserved for the Global Instance).
+    If force_copy is True, the installed game files (detected via find_install_location)
+    are copied.
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
@@ -157,9 +158,12 @@ def create_instance(instance_name, version, game):
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         if version == game["VANILLA_VERSION"]:
-            # This case is not used for creating a new instance;
-            # the Global Instance always refers directly to the installed game.
-            return "Global instance is not copied."
+            if not force_copy:
+                return "Global instance is not copied."
+            else:
+                source_path = find_install_location(game)
+                if not source_path:
+                    return "Installation for vanilla version not found!"
         else:
             source_path = os.path.join(game["VERSIONS_DIR"], version)
             if not os.path.exists(source_path):
@@ -202,7 +206,7 @@ def open_instance_folder(instance_path):
 
 def delete_instance(instance_path):
     """Delete the given instance folder after confirmation using a centered dialog."""
-    if centered_askyesno(tk._default_root, "Confirm Delete", "Are you sure you want to delete this instance?"):
+    if centered_askyesno(tk._default_root, "Confirm Delete", "Are you sure you wish to delete this instance?"):
         try:
             shutil.rmtree(instance_path)
             return True
@@ -403,10 +407,10 @@ class GameTab(tk.Frame):
         error_label.pack(pady=5)
 
         tk.Label(dialog, text="Version:").pack(pady=5)
-        # Exclude the 'Steam Version' (vanilla) from the options.
-        custom_versions = [v for v in get_version_options(self.game) if v != self.game["VANILLA_VERSION"]]
+        # Allow all versions including "Steam Version".
+        custom_versions = get_version_options(self.game)
         if not custom_versions:
-            messagebox.showerror("Error", "No mod versions available. Please create a new version first.")
+            messagebox.showerror("Error", "No versions available. Please create a new version first.")
             dialog.destroy()
             return
         selected_version = tk.StringVar(dialog)
@@ -426,7 +430,18 @@ class GameTab(tk.Frame):
                 error_label.config(text="An instance with that name already exists.")
                 return
             version = selected_version.get()
-            result = create_instance(instance_name, version, self.game)
+            # If user selects Steam Version, ask for confirmation.
+            force_copy = False
+            if version == self.game["VANILLA_VERSION"]:
+                proceed = centered_askyesno(dialog, "Confirm",
+                    "Using this version may lead to issues if you have existing mods or classic installed.\n"
+                    "Please verify your CastleMiner game files if you have not already.\n"
+                    "Do you wish to continue?", height=175)
+                if not proceed:
+                    return
+                else:
+                    force_copy = True
+            result = create_instance(instance_name, version, self.game, force_copy=force_copy)
             if result is None or result == "exists":
                 error_label.config(text="Failed to create instance.")
             else:
@@ -486,8 +501,17 @@ class GameTab(tk.Frame):
             self.tree.move(k, "", index)
 
     def on_instance_select(self, event):
-        if self.tree.selection():
-            self.set_action_buttons_state(True)
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            instance_name = item["values"][0]
+            # Always disable Delete if Global Instance is selected.
+            if instance_name == "Global Instance":
+                self.delete_btn.config(state=tk.DISABLED)
+            else:
+                self.delete_btn.config(state=tk.NORMAL)
+            self.play_btn.config(state=tk.NORMAL)
+            self.open_btn.config(state=tk.NORMAL)
         else:
             self.set_action_buttons_state(False)
 
@@ -541,6 +565,8 @@ class GameTab(tk.Frame):
             item = self.tree.item(selected[0])
             instance_name = item["values"][0]
             if instance_name == "Global Instance":
+                # This case should not occur since the Delete button is disabled,
+                # but we add an extra check.
                 messagebox.showerror("Error", "Cannot delete the Global Instance.")
                 return
         path = self.get_selected_instance_path()
