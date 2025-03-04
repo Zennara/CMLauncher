@@ -3,6 +3,8 @@ import shutil
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+import json
+import datetime
 
 # Set BASE_DIR to the folder where this script is located.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -80,7 +82,7 @@ class CacheDialog(tk.Toplevel):
         self.geometry("400x200")
         self.resizable(False, False)
         self.transient(master)
-        self.grab_set()  # Make modal
+        self.grab_set()  # Make the dialog modal.
         self.attributes("-topmost", True)
         self.after_idle(lambda: self.attributes("-topmost", False))
 
@@ -143,12 +145,33 @@ def overlay_version_files(instance_path, version, game):
             print(f"[INFO] Overlaying file: {dest_path}")
 
 
+def get_instance_info(instance_path):
+    """Read instance metadata from instance_info.json if available."""
+    info_file = os.path.join(instance_path, "instance_info.json")
+    if os.path.exists(info_file):
+        try:
+            with open(info_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    # Return defaults if not present.
+    return {"instance": os.path.basename(instance_path), "version": "", "last_played": ""}
+
+
+def write_instance_info(instance_path, info):
+    """Write instance metadata to instance_info.json."""
+    info_file = os.path.join(instance_path, "instance_info.json")
+    with open(info_file, "w") as f:
+        json.dump(info, f)
+
+
 def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
     It is created by copying the GAME_CACHE and then overlaying version files.
     Returns the instance path on success; if the instance already exists, returns "exists";
     or returns an error message string if something went wrong.
+    Also writes instance metadata.
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
@@ -157,13 +180,20 @@ def create_instance(instance_name, version, game):
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         shutil.copytree(game["GAME_CACHE"], instance_path)
         overlay_version_files(instance_path, version, game)
+        # Save instance metadata.
+        info = {
+            "instance": instance_name,
+            "version": version,
+            "last_played": ""
+        }
+        write_instance_info(instance_path, info)
         return instance_path
     except Exception as e:
         return str(e)
 
 
 def launch_game(instance_path, game):
-    """Launch the game from the given instance folder."""
+    """Launch the game from the given instance folder and update last played."""
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
     with open(app_id_path, "w") as f:
@@ -174,6 +204,10 @@ def launch_game(instance_path, game):
         env["PATH"] = instance_path + ";" + env["PATH"]
         env["PWD"] = instance_path
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
+        # Update last played in metadata.
+        info = get_instance_info(instance_path)
+        info["last_played"] = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
+        write_instance_info(instance_path, info)
     else:
         messagebox.showerror("Error", "Game executable not found in the instance folder.")
 
@@ -216,10 +250,14 @@ def get_version_options(game):
     return options
 
 
+import json
+import datetime
+
+
 def create_new_version(game):
     """
     Open a modal dialog to create a new version for the game.
-    Returns None if cancelled, or the new version name on success.
+    Returns None if cancelled.
     """
     dialog = tk.Toplevel()
     dialog.title("Create New Version")
@@ -245,14 +283,13 @@ def create_new_version(game):
             return
         try:
             os.makedirs(version_path)
-            # Optionally, you could pre-populate the folder with files.
             dialog.destroy()
         except Exception as e:
             error_label.config(text=f"Error: {e}")
 
     tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
     dialog.wait_window()
-    return None  # We don't need to return the version; the folder is now created.
+    return None  # Folder is created if successful.
 
 
 # ----------------------------
@@ -280,6 +317,8 @@ class GameTab(tk.Frame):
         self.game = game
         ensure_game_folders(self.game)
         self.overlay = None  # To hold the setup overlay
+        self.sort_column = "instance"  # Default sort column
+        self.sort_reverse = False
         self.create_widgets()
         self.populate_instances()
         self.check_base_game()
@@ -294,7 +333,7 @@ class GameTab(tk.Frame):
 
         left_frame = tk.Frame(btn_frame)
         left_frame.pack(side=tk.LEFT, padx=5)
-        self.versions_btn = tk.Button(left_frame, text="Versions", command=self.new_version_dialog)
+        self.versions_btn = tk.Button(left_frame, text="Versions", command=lambda: create_new_version(self.game))
         self.versions_btn.pack(side=tk.LEFT, padx=2)
         self.new_instance_btn = tk.Button(left_frame, text="New Instance", command=self.new_instance_dialog)
         self.new_instance_btn.pack(side=tk.LEFT, padx=2)
@@ -311,13 +350,19 @@ class GameTab(tk.Frame):
         self.delete_btn = tk.Button(right_frame, text="Delete", command=self.delete_instance)
         self.delete_btn.pack(side=tk.LEFT, padx=2)
 
-        # Instance list
-        self.instance_listbox = tk.Listbox(self, height=10)
-        self.instance_listbox.pack(fill=tk.BOTH, expand=True, padx=20)
-        self.instance_listbox.bind("<<ListboxSelect>>", self.on_instance_select)
+        # Treeview for instances with sortable headers
+        columns = ("instance", "version", "last_played")
+        self.tree = ttk.Treeview(self, columns=columns, show="headings")
+        self.tree.heading("instance", text="Instance", command=lambda: self.sort_by("instance"))
+        self.tree.heading("version", text="Version", command=lambda: self.sort_by("version"))
+        self.tree.heading("last_played", text="Last Played", command=lambda: self.sort_by("last_played"))
+        self.tree.column("instance", anchor="w", width=150)
+        self.tree.column("version", anchor="w", width=100)
+        self.tree.column("last_played", anchor="w", width=150)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
 
     def check_base_game(self):
-        # Check if base game is cached (i.e. GAME_CACHE exists and is non-empty)
         cache_dir = self.game["GAME_CACHE"]
         if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
             self.show_setup_overlay()
@@ -418,13 +463,51 @@ class GameTab(tk.Frame):
         dialog.wait_window()
 
     def populate_instances(self):
-        self.instance_listbox.delete(0, tk.END)
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        # Gather instance info from metadata file.
         for instance in list_instances(self.game):
-            self.instance_listbox.insert(tk.END, instance)
+            instance_path = os.path.join(self.game["INSTANCES_DIR"], instance)
+            info_file = os.path.join(instance_path, "instance_info.json")
+            if os.path.exists(info_file):
+                try:
+                    with open(info_file, "r") as f:
+                        info = json.load(f)
+                except Exception:
+                    info = {"instance": instance, "version": "", "last_played": ""}
+            else:
+                info = {"instance": instance, "version": "", "last_played": ""}
+            self.tree.insert("", "end", values=(info.get("instance", instance),
+                                                 info.get("version", ""),
+                                                 info.get("last_played", "")))
+        self.sort_tree(self.sort_column, self.sort_reverse)
         self.set_action_buttons_state(False)
 
+    def sort_by(self, column):
+        # Toggle sort order if column is same, else ascending.
+        if self.sort_column == column:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = column
+            self.sort_reverse = False
+        self.sort_tree(self.sort_column, self.sort_reverse)
+
+    def sort_tree(self, col, reverse):
+        l = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
+        # For "last_played", convert empty strings to a very old date so they sort consistently.
+        if col == "last_played":
+            def conv(x):
+                try:
+                    return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    return datetime.datetime.min
+            l = [(conv(val), k) for (val, k) in l]
+        l.sort(reverse=reverse)
+        for index, (val, k) in enumerate(l):
+            self.tree.move(k, "", index)
+
     def on_instance_select(self, event):
-        if self.instance_listbox.curselection():
+        if self.tree.selection():
             self.set_action_buttons_state(True)
         else:
             self.set_action_buttons_state(False)
@@ -436,9 +519,10 @@ class GameTab(tk.Frame):
         self.delete_btn.config(state=st)
 
     def get_selected_instance_path(self):
-        sel = self.instance_listbox.curselection()
-        if sel:
-            instance_name = self.instance_listbox.get(sel[0])
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            instance_name = item["values"][0]
             return os.path.join(self.game["INSTANCES_DIR"], instance_name)
         return None
 
@@ -446,6 +530,18 @@ class GameTab(tk.Frame):
         path = self.get_selected_instance_path()
         if path:
             launch_game(path, self.game)
+            # Update last played in metadata and refresh tree.
+            info_file = os.path.join(path, "instance_info.json")
+            info = {}
+            if os.path.exists(info_file):
+                try:
+                    with open(info_file, "r") as f:
+                        info = json.load(f)
+                except Exception:
+                    info = {}
+            info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            write_instance_info(path, info)
+            self.populate_instances()
 
     def open_instance(self):
         path = self.get_selected_instance_path()
@@ -496,6 +592,8 @@ def initial_setup():
 
 
 if __name__ == "__main__":
+    import json
+    import datetime
     initial_setup()
     app = LauncherGUI()
     app.mainloop()
