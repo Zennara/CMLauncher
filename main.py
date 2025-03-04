@@ -2,8 +2,8 @@ import os
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import messagebox, simpledialog
 from tkinter import ttk
+from tkinter import messagebox, simpledialog
 
 # Set BASE_DIR to the folder where this script is located.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -82,7 +82,6 @@ class CacheDialog(tk.Toplevel):
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()  # Make the dialog modal.
-        # Ensure it appears on top.
         self.attributes("-topmost", True)
         self.after_idle(lambda: self.attributes("-topmost", False))
 
@@ -113,7 +112,6 @@ class CacheDialog(tk.Toplevel):
         path = self.entry.get().strip()
         exe_full_path = os.path.join(path, self.game["EXE_NAME"])
         if os.path.exists(path) and os.path.exists(exe_full_path):
-            # Valid path: cache the base game
             cache_base_game_for_game(path, self.game)
             self.result = path
             self.destroy()
@@ -153,16 +151,15 @@ def create_instance(instance_name, version, game):
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
-        messagebox.showerror("Error", f"An instance named '{instance_name}' already exists!")
-        return None
+        # Instead of a popup, return an error message string.
+        return "exists"
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         shutil.copytree(game["GAME_CACHE"], instance_path)
         overlay_version_files(instance_path, version, game)
         return instance_path
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to create instance: {e}")
-        return None
+        return str(e)
 
 
 def launch_game(instance_path, game):
@@ -194,7 +191,6 @@ def delete_instance(instance_path):
     if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this instance?"):
         try:
             shutil.rmtree(instance_path)
-            messagebox.showinfo("Deleted", "Instance deleted successfully.")
             return True
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete instance: {e}")
@@ -287,7 +283,6 @@ class GameTab(tk.Frame):
             msg.pack(pady=20)
             setup_btn = tk.Button(self.overlay, text="Set Up Game", command=self.open_cache_dialog)
             setup_btn.pack()
-        # Also disable instance controls.
         self.set_action_buttons_state(False)
 
     def hide_setup_overlay(self):
@@ -305,12 +300,16 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Create New Instance")
         dialog.geometry("300x200")
-        dialog.transient(self)   # Make dialog appear in front of current tab
-        dialog.grab_set()        # Lock other tabs until done
+        dialog.transient(self)
+        dialog.grab_set()
 
         tk.Label(dialog, text="Instance Name:").pack(pady=5)
         name_entry = tk.Entry(dialog)
         name_entry.pack(pady=5)
+
+        # Inline error message label.
+        error_label = tk.Label(dialog, text="", fg="red")
+        error_label.pack(pady=5)
 
         tk.Label(dialog, text="Version:").pack(pady=5)
         version_options = get_version_options(self.game)
@@ -321,18 +320,25 @@ class GameTab(tk.Frame):
 
         def on_create():
             instance_name = name_entry.get().strip()
-            version = selected_version.get()
             if not instance_name:
-                messagebox.showwarning("Warning", "Instance name cannot be empty.", parent=dialog)
+                error_label.config(text="Instance name cannot be empty.")
                 return
-            path = create_instance(instance_name, version, self.game)
-            if path:
-                messagebox.showinfo("Success", f"Instance '{instance_name}' created.", parent=dialog)
+            # Check inline if instance already exists.
+            if os.path.exists(os.path.join(self.game["INSTANCES_DIR"], instance_name)):
+                error_label.config(text="An instance with that name already exists.")
+                return
+            version = selected_version.get()
+            result = create_instance(instance_name, version, self.game)
+            if result is None:
+                error_label.config(text="Failed to create instance.")
+            elif result == "exists":
+                error_label.config(text="An instance with that name already exists.")
+            else:
                 self.populate_instances()
                 dialog.destroy()
 
         tk.Button(dialog, text="Create Instance", command=on_create).pack(pady=10)
-        dialog.wait_window()  # Ensure dialog is closed before proceeding
+        dialog.wait_window()
 
     def populate_instances(self):
         self.instance_listbox.delete(0, tk.END)
@@ -400,7 +406,6 @@ def initial_setup():
     """Perform initial setup: create required folders for each game and try auto-detect caching if possible."""
     for game in games.values():
         ensure_game_folders(game)
-    # For each game, if its base game is not cached, try auto-detect.
     for game_name, game in games.items():
         if not os.path.exists(game["GAME_CACHE"]) or not os.listdir(game["GAME_CACHE"]):
             temp = tk.Tk()
