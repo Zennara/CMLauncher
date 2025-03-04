@@ -376,7 +376,7 @@ class GameTab(tk.Frame):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
         header.pack(pady=5)
 
-        # Button frame with three groups: left (Versions, New Instance), center (Play), right (Open Folder, Delete)
+        # Button frame with three groups: left (Versions, Instances), center (Play), right (Open Folder)
         btn_frame = tk.Frame(self)
         btn_frame.pack(fill=tk.X, pady=5)
 
@@ -384,8 +384,8 @@ class GameTab(tk.Frame):
         left_frame.pack(side=tk.LEFT, padx=5)
         self.versions_btn = tk.Button(left_frame, text="Versions", command=self.manage_versions_dialog)
         self.versions_btn.pack(side=tk.LEFT, padx=2)
-        self.new_instance_btn = tk.Button(left_frame, text="New Instance", command=self.new_instance_dialog)
-        self.new_instance_btn.pack(side=tk.LEFT, padx=2)
+        self.instances_btn = tk.Button(left_frame, text="Instances", command=self.manage_instances_dialog)
+        self.instances_btn.pack(side=tk.LEFT, padx=2)
 
         center_frame = tk.Frame(btn_frame)
         center_frame.pack(side=tk.LEFT, expand=True)
@@ -396,8 +396,6 @@ class GameTab(tk.Frame):
         right_frame.pack(side=tk.RIGHT, padx=5)
         self.open_btn = tk.Button(right_frame, text="Open Folder", command=self.open_instance)
         self.open_btn.pack(side=tk.LEFT, padx=2)
-        self.delete_btn = tk.Button(right_frame, text="Delete", command=self.delete_instance)
-        self.delete_btn.pack(side=tk.LEFT, padx=2)
 
         # Treeview for instances with sortable headers
         columns = ("instance", "version", "last_played")
@@ -410,6 +408,79 @@ class GameTab(tk.Frame):
         self.tree.column("last_played", anchor="w", width=150)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
+
+    def manage_instances_dialog(self):
+        """Open a dialog to manage instances (create, delete, open folder)."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Manage Instances")
+        dialog.geometry("400x300")
+        dialog.transient(self)
+        dialog.grab_set()
+        center_window(dialog, self)
+
+        listbox = tk.Listbox(dialog)
+        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        def refresh_list():
+            listbox.delete(0, tk.END)
+            global_install = find_install_location(self.game)
+            if global_install:
+                global_info = get_global_instance_info(self.game)
+                listbox.insert(tk.END, global_info.get("instance", "Global Instance"))
+            for instance in list_instances(self.game):
+                listbox.insert(tk.END, instance)
+
+        refresh_list()
+
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=5)
+
+        def create_new():
+            self.new_instance_dialog()
+            refresh_list()
+
+        def delete_selected():
+            sel = listbox.curselection()
+            if not sel:
+                custom_error(dialog, "Error", "No instance selected.")
+                return
+            instance_name = listbox.get(sel[0])
+            if instance_name == "Global Instance":
+                custom_error(dialog, "Error", "Cannot delete the Global Instance.")
+                return
+            instance_path = os.path.join(self.game["INSTANCES_DIR"], instance_name)
+            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete",
+                                  f"Delete instance '{instance_name}'?"):
+                try:
+                    shutil.rmtree(instance_path)
+                    refresh_list()
+                except Exception as e:
+                    custom_error(dialog, "Error", f"Failed to delete instance: {e}")
+
+        def open_folder():
+            sel = listbox.curselection()
+            if not sel:
+                custom_error(dialog, "Error", "No instance selected.")
+                return
+            instance_name = listbox.get(sel[0])
+            if instance_name == "Global Instance":
+                folder = find_install_location(self.game)
+                if not folder:
+                    custom_error(dialog, "Error", "Installation not found.")
+                    return
+            else:
+                folder = os.path.join(self.game["INSTANCES_DIR"], instance_name)
+            if os.path.exists(folder):
+                subprocess.Popen(["explorer", folder])
+            else:
+                custom_error(dialog, "Error", "Folder not found.")
+
+        tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+        dialog.wait_window()
 
     def new_instance_dialog(self):
         dialog = tk.Toplevel(self)
@@ -501,7 +572,7 @@ class GameTab(tk.Frame):
                                                  info.get("version", ""),
                                                  info.get("last_played", "")))
         self.sort_tree(self.sort_column, self.sort_reverse)
-        self.set_action_buttons_state(False)
+        self.set_action_buttons_state(True)
 
     def sort_by(self, column):
         if self.sort_column == column:
@@ -527,13 +598,7 @@ class GameTab(tk.Frame):
     def on_instance_select(self, event):
         selected = self.tree.selection()
         if selected:
-            item = self.tree.item(selected[0])
-            instance_name = item["values"][0]
-            # Disable Delete if Global Instance is selected.
-            if instance_name == "Global Instance":
-                self.delete_btn.config(state=tk.DISABLED)
-            else:
-                self.delete_btn.config(state=tk.NORMAL)
+            # In the main window, only enable Play and Open Folder.
             self.play_btn.config(state=tk.NORMAL)
             self.open_btn.config(state=tk.NORMAL)
         else:
@@ -543,7 +608,6 @@ class GameTab(tk.Frame):
         st = tk.NORMAL if state else tk.DISABLED
         self.play_btn.config(state=st)
         self.open_btn.config(state=st)
-        self.delete_btn.config(state=st)
 
     def get_selected_instance_path(self):
         selected = self.tree.selection()
@@ -588,18 +652,6 @@ class GameTab(tk.Frame):
         if path:
             open_instance_folder(path)
 
-    def delete_instance(self):
-        selected = self.tree.selection()
-        if selected:
-            item = self.tree.item(selected[0])
-            instance_name = item["values"][0]
-            if instance_name == "Global Instance":
-                messagebox.showerror("Error", "Cannot delete the Global Instance.")
-                return
-        path = self.get_selected_instance_path()
-        if path and delete_instance(path):
-            self.populate_instances()
-
     def manage_versions_dialog(self):
         dialog = tk.Toplevel(self)
         dialog.title("Manage Versions")
@@ -608,7 +660,6 @@ class GameTab(tk.Frame):
         dialog.grab_set()
         center_window(dialog, self)
 
-        # Listbox to display all versions
         listbox = tk.Listbox(dialog)
         listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -620,7 +671,6 @@ class GameTab(tk.Frame):
 
         refresh_list()
 
-        # Create button frame
         btn_frame = tk.Frame(dialog)
         btn_frame.pack(pady=5)
 
@@ -664,8 +714,7 @@ class GameTab(tk.Frame):
                 custom_error(dialog, "Error", "Folder not found.")
 
         tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
-        btn_delete = tk.Button(btn_frame, text="Delete Selected", command=delete_selected)
-        btn_delete.pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
 
@@ -674,12 +723,8 @@ class GameTab(tk.Frame):
             if sel:
                 version_name = listbox.get(sel[0])
                 if version_name == self.game["VANILLA_VERSION"]:
-                    btn_delete.config(state=tk.DISABLED)
-                else:
-                    btn_delete.config(state=tk.NORMAL)
-            else:
-                btn_delete.config(state=tk.DISABLED)
-
+                    pass  # No deletion allowed.
+            # No need to disable any buttons here since deletion is handled inside delete_selected.
         listbox.bind("<<ListboxSelect>>", on_select)
         dialog.wait_window()
 
