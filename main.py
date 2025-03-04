@@ -12,22 +12,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Define game configurations. Folders will be under Launcher/<GameName>/...
 games = {
     "CastleMiner Z": {
-        "GAME_CACHE": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "GameCache"),
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
         "EXE_NAME": "CastleMinerZ.exe",
-        "VANILLA_VERSION": "Vanilla 1.9.8.0",
+        "VANILLA_VERSION": "Installed Version",
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Z",
             r"C:\Program Files\Steam\steamapps\common\CastleMiner Z"
         ]
     },
     "CastleMiner Warfare": {
-        "GAME_CACHE": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "GameCache"),
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Instances"),
         "EXE_NAME": "CastleMinerWarfare.exe",
-        "VANILLA_VERSION": "Vanilla 1.0.0",
+        "VANILLA_VERSION": "Installed Version",
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Warfare",
             r"C:\Program Files\Steam\steamapps\common\CastleMiner Warfare"
@@ -38,23 +36,11 @@ games = {
 
 def ensure_game_folders(game):
     """Ensure that required folders exist for the given game."""
-    for key in ["GAME_CACHE", "VERSIONS_DIR", "INSTANCES_DIR"]:
+    for key in ["VERSIONS_DIR", "INSTANCES_DIR"]:
         folder = game[key]
         if not os.path.exists(folder):
             os.makedirs(folder)
             print(f"[INFO] Created folder: {folder}")
-
-
-def cache_base_game_for_game(base_game_path, game):
-    """Cache the base game for this game if not already cached."""
-    cache_dir = game["GAME_CACHE"]
-    if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
-        print(f"[INFO] Caching base game from: {base_game_path}")
-        if os.path.exists(cache_dir):
-            shutil.rmtree(cache_dir)
-        shutil.copytree(base_game_path, cache_dir)
-    else:
-        print("[INFO] Base game already cached.")
 
 
 def find_install_location(game):
@@ -117,63 +103,6 @@ def centered_askyesno(parent, title, message):
     return result[0]
 
 
-class CacheDialog(tk.Toplevel):
-    def __init__(self, master, game_name, game):
-        super().__init__(master)
-        self.game = game
-        self.game_name = game_name
-        self.title(f"Set Up {game_name}")
-        self.geometry("400x200")
-        self.resizable(False, False)
-        self.transient(master)
-        self.grab_set()  # Make the dialog modal.
-
-        # Withdraw the window to hide it until centered.
-        self.withdraw()
-        self.update_idletasks()  # Ensure geometry is calculated.
-        center_window(self, self.master.winfo_toplevel())
-        self.deiconify()  # Now show the window
-
-        self.attributes("-topmost", True)
-        self.after_idle(lambda: self.attributes("-topmost", False))
-
-        self.result = None
-
-        tk.Label(self, text=f"Enter installation path for {game_name}:").pack(pady=10)
-        self.entry = tk.Entry(self, width=50)
-        self.entry.pack(pady=5)
-        detected = find_install_location(game)
-        if detected:
-            self.entry.insert(0, detected)
-
-        self.error_label = tk.Label(self, text="", fg="red")
-        self.error_label.pack(pady=5)
-
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(pady=10)
-        verify_btn = tk.Button(btn_frame, text="Verify", command=self.verify_path)
-        verify_btn.grid(row=0, column=0, padx=5)
-        cancel_btn = tk.Button(btn_frame, text="Cancel", command=self.cancel)
-        cancel_btn.grid(row=0, column=1, padx=5)
-
-        self.protocol("WM_DELETE_WINDOW", self.cancel)
-        self.wait_window(self)
-
-    def verify_path(self):
-        path = self.entry.get().strip()
-        exe_full_path = os.path.join(path, self.game["EXE_NAME"])
-        if os.path.exists(path) and os.path.exists(exe_full_path):
-            cache_base_game_for_game(path, self.game)
-            self.result = path
-            self.destroy()
-        else:
-            self.error_label.config(text="Invalid path or executable not found. Please try again.")
-
-    def cancel(self):
-        self.result = None
-        self.destroy()
-
-
 def overlay_version_files(instance_path, version, game):
     """
     Overlay version-specific files onto an instance folder.
@@ -217,7 +146,7 @@ def write_instance_info(instance_path, info):
 def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
-    Instead of using the base game cache, this copies all files from the version folder.
+    Instead of using the base game cache, this copies all files from the version folder or installed game.
     It writes instance metadata and returns the instance path on success.
     If the instance already exists, returns "exists", or returns an error message if something goes wrong.
     """
@@ -226,11 +155,16 @@ def create_instance(instance_name, version, game):
         return "exists"
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
-        # Use the version folder as the source folder.
-        version_path = os.path.join(game["VERSIONS_DIR"], version)
-        if not os.path.exists(version_path):
-            return f"Version folder for '{version}' not found!"
-        shutil.copytree(version_path, instance_path)
+        if version == game["VANILLA_VERSION"]:
+            # Use the installed game location for the vanilla version.
+            source_path = find_install_location(game)
+            if not source_path:
+                return "Installation for vanilla version not found!"
+        else:
+            source_path = os.path.join(game["VERSIONS_DIR"], version)
+            if not os.path.exists(source_path):
+                return f"Version folder for '{version}' not found!"
+        shutil.copytree(source_path, instance_path)
         info = {
             "instance": instance_name,
             "version": version,
@@ -299,21 +233,20 @@ def get_version_options(game):
     return options
 
 
-def create_new_version(game):
+def new_version_dialog(game, parent):
     """
     Open a modal dialog to create a new version for the game.
     Returns None if cancelled.
     """
-    dialog = tk.Toplevel()
+    dialog = tk.Toplevel(parent)
     dialog.title("Create New Version")
     dialog.geometry("300x150")
-    dialog.transient()
+    dialog.transient(parent)
     dialog.grab_set()
-    center_window(dialog, app)
+    center_window(dialog, parent)
 
     tk.Label(dialog, text="Version Name:").pack(pady=5)
     version_var = tk.StringVar()
-    version_var.set("")
     name_entry = tk.Entry(dialog, textvariable=version_var)
     name_entry.pack(pady=5)
 
@@ -358,8 +291,7 @@ class HomeTab(tk.Frame):
             "Welcome to CMLauncher!\n\n"
             "This launcher allows you to manage multiple instances of your games and apply "
             "different versions/modifications.\n\n"
-            "Use the tabs above to manage each game. For each game, you must first cache the base game. "
-            "If the base game is not cached, the game tab will be greyed out. Click on the overlay to set up the game."
+            "Use the tabs above to manage each game."
         )
         label = tk.Label(self, text=text, justify=tk.LEFT)
         label.pack(padx=20, pady=20, anchor="w")
@@ -371,12 +303,10 @@ class GameTab(tk.Frame):
         self.game_name = game_name
         self.game = game
         ensure_game_folders(self.game)
-        self.overlay = None  # To hold the setup overlay
         self.sort_column = "instance"  # Default sort column
         self.sort_reverse = False
         self.create_widgets()
         self.populate_instances()
-        self.check_base_game()
 
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
@@ -417,41 +347,13 @@ class GameTab(tk.Frame):
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
 
-    def check_base_game(self):
-        cache_dir = self.game["GAME_CACHE"]
-        if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
-            self.show_setup_overlay()
-        else:
-            self.hide_setup_overlay()
-
-    def show_setup_overlay(self):
-        if self.overlay is None:
-            self.overlay = tk.Frame(self, bg="light grey")
-            self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
-            msg = tk.Label(self.overlay, text="Base game not cached!\nClick the button below to set up.",
-                           fg="red", bg="light grey", font=("Arial", 14))
-            msg.pack(pady=20)
-            setup_btn = tk.Button(self.overlay, text="Set Up Game", command=self.open_cache_dialog)
-            setup_btn.pack()
-        self.set_action_buttons_state(False)
-
-    def hide_setup_overlay(self):
-        if self.overlay:
-            self.overlay.destroy()
-            self.overlay = None
-
-    def open_cache_dialog(self):
-        dlg = CacheDialog(self, self.game_name, self.game)
-        self.check_base_game()
-        self.populate_instances()
-
     def new_instance_dialog(self):
         dialog = tk.Toplevel(self)
         dialog.title("Create New Instance")
         dialog.geometry("300x200")
         dialog.transient(self)
         dialog.grab_set()
-        center_window(dialog, self)  # Center the dialog relative to the main window
+        center_window(dialog, self)
 
         tk.Label(dialog, text="Instance Name:").pack(pady=5)
         instance_var = tk.StringVar()
@@ -491,41 +393,7 @@ class GameTab(tk.Frame):
         dialog.wait_window()
 
     def new_version_dialog(self):
-        dialog = tk.Toplevel(self)
-        dialog.title("Create New Version")
-        dialog.geometry("300x150")
-        dialog.transient(self)
-        dialog.grab_set()
-        center_window(dialog, self)  # Center the dialog relative to the main window
-
-        tk.Label(dialog, text="Version Name:").pack(pady=5)
-        version_var = tk.StringVar()
-        name_entry = tk.Entry(dialog, textvariable=version_var)
-        name_entry.pack(pady=5)
-
-        error_label = tk.Label(dialog, text="", fg="red")
-        error_label.pack(pady=5)
-
-        def on_create():
-            version_name = version_var.get().strip()
-            if not version_name:
-                error_label.config(text="Version name cannot be empty.")
-                return
-            if len(version_name) > 25:
-                error_label.config(text="Version name cannot exceed 25 characters.")
-                return
-            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
-            if os.path.exists(version_path):
-                error_label.config(text="Version already exists.")
-                return
-            try:
-                os.makedirs(version_path)
-                dialog.destroy()
-            except Exception as e:
-                error_label.config(text=f"Error: {e}")
-
-        tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
-        dialog.wait_window()
+        new_version_dialog(self.game, self)
 
     def populate_instances(self):
         for item in self.tree.get_children():
@@ -620,7 +488,7 @@ class GameTab(tk.Frame):
         dialog.geometry("400x300")
         dialog.transient(self)
         dialog.grab_set()
-        center_window(dialog, self)  # Center the dialog relative to the main app window
+        center_window(dialog, self)
 
         # Listbox to display all versions
         listbox = tk.Listbox(dialog)
@@ -666,7 +534,11 @@ class GameTab(tk.Frame):
                 return
             version_name = listbox.get(sel[0])
             if version_name == self.game["VANILLA_VERSION"]:
-                folder = self.game["GAME_CACHE"]
+                # Open the installed game folder for the vanilla version.
+                folder = find_install_location(self.game)
+                if not folder:
+                    custom_error(dialog, "Error", "Installation not found.")
+                    return
             else:
                 folder = os.path.join(self.game["VERSIONS_DIR"], version_name)
             if os.path.exists(folder):
@@ -674,14 +546,12 @@ class GameTab(tk.Frame):
             else:
                 custom_error(dialog, "Error", "Folder not found.")
 
-        # Create buttons and store Delete button for later state updates.
         tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
         btn_delete = tk.Button(btn_frame, text="Delete Selected", command=delete_selected)
         btn_delete.pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
 
-        # Bind selection change to enable/disable Delete button.
         def on_select(event):
             sel = listbox.curselection()
             if sel:
@@ -694,7 +564,6 @@ class GameTab(tk.Frame):
                 btn_delete.config(state=tk.DISABLED)
 
         listbox.bind("<<ListboxSelect>>", on_select)
-
         dialog.wait_window()
 
 
@@ -718,19 +587,9 @@ class LauncherGUI(tk.Tk):
 
 
 def initial_setup():
-    """Perform initial setup: create required folders for each game and try auto-detect caching if possible."""
+    """Perform initial setup: create required folders for each game."""
     for game in games.values():
         ensure_game_folders(game)
-    for game_name, game in games.items():
-        if not os.path.exists(game["GAME_CACHE"]) or not os.listdir(game["GAME_CACHE"]):
-            temp = tk.Tk()
-            temp.withdraw()
-            detected = find_install_location(game)
-            if detected:
-                if messagebox.askyesno("Confirm Install Location",
-                                       f"Detected {game_name} installation at:\n{detected}\nCache base game from here?"):
-                    cache_base_game_for_game(detected, game)
-            temp.destroy()
 
 
 if __name__ == "__main__":
