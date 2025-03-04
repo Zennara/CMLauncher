@@ -8,7 +8,7 @@ import tkinter.font as tkFont
 import json
 import datetime
 
-from Launcher.config import MANAGE_ICON, PLUS_ICON, BASE_ICON
+from config import MANAGE_ICON, PLUS_ICON, BASE_ICON
 from config import LOCAL_VERSION, LOCAL_INSTANCE, games, INSTALL_PATHS_FILE
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
@@ -327,9 +327,9 @@ class HomeTab(tk.Frame):
         self.text_widget.tag_configure("body", font=base_font, spacing1=4, spacing3=4)
 
         # Insert text with tags to simulate Markdown content.
-        self.text_widget.insert(tk.END, "CMLauncher\n", "h1")
+        self.text_widget.insert(tk.END, "Games\n", "h1")
         self.text_widget.insert(tk.END,
-                                "Thank you for using CMLauncher! Below you will find some information regarding terminology, and how to use various features of the launcher.\n", "body")
+                                "Thank you for using Games! Below you will find some information regarding terminology, and how to use various features of the launcher.\n", "body")
 
         self.text_widget.insert(tk.END, "\n")
         self.text_widget.insert(tk.END, "Versions\n", "h3")
@@ -347,7 +347,7 @@ class HomeTab(tk.Frame):
 
         self.text_widget.insert(tk.END, "First Launch\n", "h3")
         self.text_widget.insert(tk.END,
-                                "On your first launch of CMLauncher, the launcher will attempt to locate your CM game directories "
+                                "On your first launch of Games, the launcher will attempt to locate your CM game directories "
                                 "automatically. If it fails, you will need to set up the installation path for each game manually on its "
                                 "respective tab.\n", "body")
 
@@ -941,7 +941,7 @@ class GameTab(tk.Frame):
 class LauncherGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CMLauncher")
+        self.title("Games")
         self.geometry("600x500")
         self.iconbitmap(BASE_ICON)
         self.create_tabs()
