@@ -4,6 +4,7 @@ import subprocess
 import tkinter as tk
 import webbrowser
 from tkinter import ttk, scrolledtext
+import tkinter.font as tkFont
 import json
 import datetime
 
@@ -303,7 +304,6 @@ def clone_version(version_name, game):
 # ----------------------------
 # GUI Classes
 # ----------------------------
-import tkinter.font as tkFont
 class HomeTab(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
@@ -472,15 +472,14 @@ class GameTab(tk.Frame):
         self.instances_btn = tk.Button(left_frame, text="Instances", command=self.manage_instances_dialog)
         self.instances_btn.pack(side=tk.LEFT, padx=2)
 
-        center_frame = tk.Frame(btn_frame)
-        center_frame.pack(side=tk.LEFT, expand=True)
-        self.play_btn = tk.Button(center_frame, text="   Play   ", command=self.start_instance, state=tk.DISABLED)
-        self.play_btn.pack()
-
         right_frame = tk.Frame(btn_frame)
         right_frame.pack(side=tk.RIGHT, padx=5)
-        self.open_btn = tk.Button(right_frame, text="Open Folder", command=self.open_instance)
-        self.open_btn.pack(side=tk.LEFT, padx=2)
+
+        self.selected_instance_label = tk.Label(right_frame, text="No instance selected", font=("Arial", 12))
+        self.selected_instance_label.pack(side=tk.LEFT, padx=5)
+
+        self.play_btn = tk.Button(right_frame, text="   Play   ", command=self.start_instance, state=tk.DISABLED)
+        self.play_btn.pack(side=tk.RIGHT)
 
         self.tree = ttk.Treeview(self, columns=("instance", "version", "last_played"), show="headings")
         self.tree.heading("instance", text="Instance", command=lambda: self.sort_by("instance"))
@@ -748,15 +747,17 @@ class GameTab(tk.Frame):
 
     def on_instance_select(self, event):
         if self.tree.selection():
+            item = self.tree.item(self.tree.selection()[0])
+            inst_name = str(item["values"][0])
+            self.selected_instance_label.config(text=inst_name)
             self.play_btn.config(state=tk.NORMAL)
-            self.open_btn.config(state=tk.NORMAL)
         else:
-            self.set_action_buttons_state(False)
+            self.selected_instance_label.config(text="No instance selected")
+            self.play_btn.config(state=tk.DISABLED)
 
     def set_action_buttons_state(self, state):
         st = tk.NORMAL if state else tk.DISABLED
         self.play_btn.config(state=st)
-        self.open_btn.config(state=st)
 
     def get_selected_instance_path(self):
         selected = self.tree.selection()
