@@ -455,11 +455,12 @@ class GameTab(tk.Frame):
             item = self.tree.item(rowid)
             instance_name = item["values"][0]
             menu = tk.Menu(self, tearoff=0)
-            # Disable Delete if Global Instance is selected.
+            # Delete is disabled for Global Instance.
             if instance_name == "Global Instance":
                 menu.add_command(label="Delete", state="disabled")
             else:
                 menu.add_command(label="Delete", command=self.delete_selected_main)
+            # Always enable Clone, even for Global Instance.
             menu.add_command(label="Clone", command=self.clone_selected_main)
             menu.add_command(label="Open Folder", command=self.open_selected_main)
             menu.tk_popup(event.x_root, event.y_root)
@@ -530,15 +531,16 @@ class GameTab(tk.Frame):
             if not sel:
                 custom_error(dialog, "Error", "No instance selected.")
                 return
-            inst = listbox.get(sel[0])
-            if inst == "Global Instance":
+            instance_name = listbox.get(sel[0])
+            if instance_name == "Global Instance":
                 custom_error(dialog, "Error", "Cannot delete the Global Instance.")
                 return
-            inst_path = os.path.join(self.game["INSTANCES_DIR"], inst)
-            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete instance '{inst}'?"):
+            instance_path = os.path.join(self.game["INSTANCES_DIR"], instance_name)
+            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete instance '{instance_name}'?"):
                 try:
-                    shutil.rmtree(inst_path)
+                    shutil.rmtree(instance_path)
                     refresh_list()
+                    self.populate_instances()
                 except Exception as e:
                     custom_error(dialog, "Error", f"Failed to delete instance: {e}")
 
@@ -550,6 +552,7 @@ class GameTab(tk.Frame):
             inst = listbox.get(sel[0])
             clone_instance(inst, self.game)
             refresh_list()
+            self.populate_instances()
 
         def open_inst():
             sel = listbox.curselection()
@@ -574,6 +577,7 @@ class GameTab(tk.Frame):
         tk.Button(btn_frame, text="Create New", command=lambda: [self.new_instance_dialog(), refresh_list()]).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
         dialog.wait_window()
+        self.populate_instances()
 
     def new_instance_dialog(self):
         dialog = tk.Toplevel(self)
