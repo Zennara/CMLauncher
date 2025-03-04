@@ -8,7 +8,7 @@ import tkinter.font as tkFont
 import json
 import datetime
 
-from config import MANAGE_ICON, PLUS_ICON, BASE_ICON
+from config import MANAGE_ICON, PLUS_ICON, BASE_ICON, VERSION
 from config import LOCAL_VERSION, LOCAL_INSTANCE, games, INSTALL_PATHS_FILE
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
@@ -941,7 +941,7 @@ class GameTab(tk.Frame):
 class LauncherGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CMLauncher")
+        self.title(f"CMLauncher {VERSION}")
         self.geometry("600x500")
         self.iconbitmap(BASE_ICON)
         self.create_tabs()

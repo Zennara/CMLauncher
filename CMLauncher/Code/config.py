@@ -7,6 +7,8 @@ INSTALL_PATHS_FILE = os.path.join(BASE_DIR, "install_paths.json")
 LOCAL_VERSION = "Steam Version"
 LOCAL_INSTANCE = "Global Instance"
 
+VERSION = "1.0.0"
+
 BASE_ICON = os.path.join(BASE_DIR, r"Code\assets\icon.ico")
 MANAGE_ICON = os.path.join(BASE_DIR, r"Code\assets\manage.ico")
 PLUS_ICON = os.path.join(BASE_DIR, r"Code\assets\plus.ico")
