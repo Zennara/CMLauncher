@@ -317,6 +317,9 @@ def new_version_dialog(game, parent):
         if not version_name:
             error_label.config(text="Version name cannot be empty.")
             return
+        if version_name == game["VANILLA_VERSION"]:
+            error_label.config(text="Cannot use 'Steam Version' as a version name.")
+            return
         version_path = os.path.join(game["VERSIONS_DIR"], version_name)
         if os.path.exists(version_path):
             error_label.config(text="Version already exists.")
@@ -642,6 +645,9 @@ class GameTab(tk.Frame):
             if not inst_name:
                 error_label.config(text="Instance name cannot be empty.")
                 return
+            if inst_name == "Global Instance":
+                error_label.config(text="Cannot use 'Global Instance' as an instance name.")
+                return
             if len(inst_name) > 25:
                 error_label.config(text="Instance name cannot exceed 25 characters.")
                 return
@@ -652,9 +658,9 @@ class GameTab(tk.Frame):
             force_copy = False
             if ver == self.game["VANILLA_VERSION"]:
                 proceed = centered_askyesno(dialog, "Confirm",
-                    "Using this version may lead to issues if you have existing mods or classic installed.\n"
-                    "Please verify your CastleMiner game files if you have not already.\n"
-                    "Do you wish to continue?", height=175)
+                                            "Using this version may lead to issues if you have existing mods or classic installed.\n"
+                                            "Please verify your CastleMiner game files if you have not already.\n"
+                                            "Do you wish to continue?", height=175)
                 if not proceed:
                     return
                 else:
