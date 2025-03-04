@@ -941,7 +941,7 @@ class GameTab(tk.Frame):
 class LauncherGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Games")
+        self.title("CMLauncher")
         self.geometry("600x500")
         self.iconbitmap(BASE_ICON)
         self.create_tabs()
