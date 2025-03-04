@@ -357,6 +357,9 @@ def clone_instance(instance_name, game):
     else:
         source = os.path.join(game["INSTANCES_DIR"], instance_name)
     new_name = custom_askstring(tk._default_root, "Clone Instance", "Enter new instance name:")
+    if new_name == "Global Instance":
+        custom_error(tk._default_root, "Error", "Cannot use 'Global Instance' as an instance name.")
+        return
     if not new_name:
         return
     new_path = os.path.join(game["INSTANCES_DIR"], new_name)
@@ -382,6 +385,9 @@ def clone_version(version_name, game):
     else:
         source = os.path.join(game["VERSIONS_DIR"], version_name)
     new_name = custom_askstring(tk._default_root, "Clone Version", "Enter new version name:")
+    if new_name == game["VANILLA_VERSION"]:
+        custom_error(tk._default_root, "Error", "Cannot use 'Steam Version' as a version name.")
+        return
     if not new_name:
         return
     new_path = os.path.join(game["VERSIONS_DIR"], new_name)
