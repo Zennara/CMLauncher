@@ -313,8 +313,39 @@ class GameTab(tk.Frame):
         ensure_game_folders(self.game)
         self.sort_column = "instance"  # Default sort column
         self.sort_reverse = False
-        self.create_widgets()
-        self.populate_instances()
+
+        # Check if installation is auto-detected; if not, load a minimal UI.
+        if find_install_location(self.game) is None:
+            self.load_no_install_ui()
+        else:
+            self.create_widgets()
+            self.populate_instances()
+
+    def load_no_install_ui(self):
+        """Show a minimal UI with a button to input the Steam installation path."""
+        for widget in self.winfo_children():
+            widget.destroy()
+        label = tk.Label(self, text=f"Installation for {self.game_name} not detected.")
+        label.pack(pady=20)
+        btn = tk.Button(self, text="Set Steam Installation Path", command=self.set_install_path)
+        btn.pack(pady=10)
+
+    def set_install_path(self):
+        """Prompt the user to input the Steam installation path manually."""
+        path = simpledialog.askstring("Set Installation Path",
+                                      f"Enter the Steam installation path for {self.game_name}:")
+        if path:
+            exe_path = os.path.join(path, self.game["EXE_NAME"])
+            if os.path.exists(exe_path):
+                # Prepend the new path to the list of possible paths.
+                self.game["POSSIBLE_PATHS"].insert(0, path)
+                # Reinitialize the tab UI.
+                for widget in self.winfo_children():
+                    widget.destroy()
+                self.create_widgets()
+                self.populate_instances()
+            else:
+                messagebox.showerror("Error", f"Executable not found at provided path:\n{exe_path}")
 
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
