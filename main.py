@@ -68,6 +68,25 @@ def center_window(window, parent):
     window.geometry(f"+{x}+{y}")
 
 
+def custom_askstring(parent, title, prompt):
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.geometry("300x150")
+    dlg.transient(parent)
+    dlg.grab_set()
+    center_window(dlg, parent)
+    tk.Label(dlg, text=prompt, wraplength=280, justify=tk.LEFT).pack(pady=10)
+    entry_var = tk.StringVar()
+    tk.Entry(dlg, textvariable=entry_var).pack(pady=5)
+    result = [None]
+    def on_ok():
+        result[0] = entry_var.get()
+        dlg.destroy()
+    tk.Button(dlg, text="OK", command=on_ok, width=10).pack(pady=10)
+    dlg.wait_window()
+    return result[0]
+
+
 def custom_info(parent, title, message):
     dlg = tk.Toplevel(parent)
     dlg.title(title)
@@ -334,7 +353,7 @@ def clone_instance(instance_name, game):
             return
     else:
         source = os.path.join(game["INSTANCES_DIR"], instance_name)
-    new_name = simpledialog.askstring("Clone Instance", "Enter new instance name:")
+    new_name = custom_askstring(tk._default_root, "Clone Instance", "Enter new instance name:")
     if not new_name:
         return
     new_path = os.path.join(game["INSTANCES_DIR"], new_name)
@@ -358,7 +377,7 @@ def clone_version(version_name, game):
         custom_error(tk._default_root, "Error", "Cannot clone the vanilla version.")
         return
     source = os.path.join(game["VERSIONS_DIR"], version_name)
-    new_name = simpledialog.askstring("Clone Version", "Enter new version name:")
+    new_name = custom_askstring(tk._default_root, "Clone Version", "Enter new version name:")
     if not new_name:
         return
     new_path = os.path.join(game["VERSIONS_DIR"], new_name)
@@ -413,7 +432,7 @@ class GameTab(tk.Frame):
         btn.pack(pady=10)
 
     def set_install_path(self):
-        path = simpledialog.askstring("Set Installation Path", f"Enter the Steam installation path for {self.game_name}:")
+        path = custom_askstring(tk._default_root, "Set Installation Path", f"Enter the Steam installation path for {self.game_name}:")
         if path:
             exe_path = os.path.join(path, self.game["EXE_NAME"])
             if os.path.exists(exe_path):
