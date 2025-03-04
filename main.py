@@ -272,7 +272,6 @@ def new_version_dialog(game, parent):
     name_entry = tk.Entry(dialog, textvariable=version_var)
     name_entry.pack(pady=5)
 
-    # Limit entry to 25 characters.
     def limit_version(*args):
         value = version_var.get()
         if len(value) > 25:
@@ -299,7 +298,7 @@ def new_version_dialog(game, parent):
 
     tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
     dialog.wait_window()
-    return None  # Folder is created if successful.
+    return None
 
 
 def get_product_version(exe_path):
@@ -311,6 +310,54 @@ def get_product_version(exe_path):
         return f"{(ms >> 16) & 0xFFFF}.{ms & 0xFFFF}.{(ls >> 16) & 0xFFFF}.{ls & 0xFFFF}"
     except Exception:
         return "Unknown"
+
+
+# --- Helper functions for cloning ---
+def clone_instance(instance_name, game):
+    """Clone an instance (including Global Instance) with a new name."""
+    if instance_name == "Global Instance":
+        source = find_install_location(game)
+        if not source:
+            messagebox.showerror("Error", "Global Instance source not found.")
+            return
+    else:
+        source = os.path.join(game["INSTANCES_DIR"], instance_name)
+    new_name = simpledialog.askstring("Clone Instance", "Enter new instance name:")
+    if not new_name:
+        return
+    new_path = os.path.join(game["INSTANCES_DIR"], new_name)
+    if os.path.exists(new_path):
+        messagebox.showerror("Error", "An instance with that name already exists.")
+        return
+    try:
+        shutil.copytree(source, new_path)
+        # Update the cloned instance's metadata
+        info = get_instance_info(new_path)
+        info["instance"] = new_name
+        write_instance_info(new_path, info)
+        messagebox.showinfo("Clone", f"Instance cloned as '{new_name}'.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to clone instance: {e}")
+
+
+def clone_version(version_name, game):
+    """Clone a version folder with a new name."""
+    if version_name == game["VANILLA_VERSION"]:
+        messagebox.showerror("Error", "Cannot clone the vanilla version.")
+        return
+    source = os.path.join(game["VERSIONS_DIR"], version_name)
+    new_name = simpledialog.askstring("Clone Version", "Enter new version name:")
+    if not new_name:
+        return
+    new_path = os.path.join(game["VERSIONS_DIR"], new_name)
+    if os.path.exists(new_path):
+        messagebox.showerror("Error", "A version with that name already exists.")
+        return
+    try:
+        shutil.copytree(source, new_path)
+        messagebox.showinfo("Clone", f"Version cloned as '{new_name}'.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to clone version: {e}")
 
 
 # ----------------------------
@@ -336,10 +383,9 @@ class GameTab(tk.Frame):
         self.game_name = game_name
         self.game = game
         ensure_game_folders(self.game)
-        self.sort_column = "instance"  # Default sort column
+        self.sort_column = "instance"
         self.sort_reverse = False
 
-        # Check if installation is auto-detected; if not, load a minimal UI.
         if find_install_location(self.game) is None:
             self.load_no_install_ui()
         else:
@@ -347,7 +393,6 @@ class GameTab(tk.Frame):
             self.populate_instances()
 
     def load_no_install_ui(self):
-        """Show a minimal UI with a button to input the Steam installation path."""
         for widget in self.winfo_children():
             widget.destroy()
         label = tk.Label(self, text=f"Installation for {self.game_name} not detected.")
@@ -356,15 +401,11 @@ class GameTab(tk.Frame):
         btn.pack(pady=10)
 
     def set_install_path(self):
-        """Prompt the user to input the Steam installation path manually."""
-        path = simpledialog.askstring("Set Installation Path",
-                                      f"Enter the Steam installation path for {self.game_name}:")
+        path = simpledialog.askstring("Set Installation Path", f"Enter the Steam installation path for {self.game_name}:")
         if path:
             exe_path = os.path.join(path, self.game["EXE_NAME"])
             if os.path.exists(exe_path):
-                # Prepend the new path to the list of possible paths.
                 self.game["POSSIBLE_PATHS"].insert(0, path)
-                # Reinitialize the tab UI.
                 for widget in self.winfo_children():
                     widget.destroy()
                 self.create_widgets()
@@ -376,7 +417,6 @@ class GameTab(tk.Frame):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
         header.pack(pady=5)
 
-        # Button frame with three groups: left (Versions, Instances), center (Play), right (Open Folder)
         btn_frame = tk.Frame(self)
         btn_frame.pack(fill=tk.X, pady=5)
 
@@ -397,9 +437,7 @@ class GameTab(tk.Frame):
         self.open_btn = tk.Button(right_frame, text="Open Folder", command=self.open_instance)
         self.open_btn.pack(side=tk.LEFT, padx=2)
 
-        # Treeview for instances with sortable headers
-        columns = ("instance", "version", "last_played")
-        self.tree = ttk.Treeview(self, columns=columns, show="headings")
+        self.tree = ttk.Treeview(self, columns=("instance", "version", "last_played"), show="headings")
         self.tree.heading("instance", text="Instance", command=lambda: self.sort_by("instance"))
         self.tree.heading("version", text="Version", command=lambda: self.sort_by("version"))
         self.tree.heading("last_played", text="Last Played", command=lambda: self.sort_by("last_played"))
@@ -408,9 +446,44 @@ class GameTab(tk.Frame):
         self.tree.column("last_played", anchor="w", width=150)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
+        self.tree.bind("<Button-3>", self.show_main_context)
+
+    def show_main_context(self, event):
+        rowid = self.tree.identify_row(event.y)
+        if rowid:
+            self.tree.selection_set(rowid)
+            item = self.tree.item(rowid)
+            instance_name = item["values"][0]
+            menu = tk.Menu(self, tearoff=0)
+            # Disable Delete if Global Instance is selected.
+            if instance_name == "Global Instance":
+                menu.add_command(label="Delete", state="disabled")
+            else:
+                menu.add_command(label="Delete", command=self.delete_selected_main)
+            menu.add_command(label="Clone", command=self.clone_selected_main)
+            menu.add_command(label="Open Folder", command=self.open_selected_main)
+            menu.tk_popup(event.x_root, event.y_root)
+            menu.grab_release()
+
+    def delete_selected_main(self):
+        path = self.get_selected_instance_path()
+        if path and delete_instance(path):
+            self.populate_instances()
+
+    def clone_selected_main(self):
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            instance_name = item["values"][0]
+            clone_instance(instance_name, self.game)
+            self.populate_instances()
+
+    def open_selected_main(self):
+        path = self.get_selected_instance_path()
+        if path:
+            open_instance_folder(path)
 
     def manage_instances_dialog(self):
-        """Open a dialog to manage instances (create, delete, open folder)."""
         dialog = tk.Toplevel(self)
         dialog.title("Manage Instances")
         dialog.geometry("400x300")
@@ -432,54 +505,74 @@ class GameTab(tk.Frame):
 
         refresh_list()
 
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=5)
+        # Right-click context for Instances listbox
+        instance_menu = tk.Menu(listbox, tearoff=0)
+        instance_menu.add_command(label="Delete", command=lambda: delete_inst())
+        instance_menu.add_command(label="Clone", command=lambda: clone_inst())
+        instance_menu.add_command(label="Open Folder", command=lambda: open_inst())
 
-        def create_new():
-            self.new_instance_dialog()
-            refresh_list()
+        def show_inst_menu(event):
+            index = listbox.nearest(event.y)
+            listbox.selection_clear(0, tk.END)
+            listbox.selection_set(index)
+            inst = listbox.get(index)
+            if inst == "Global Instance":
+                instance_menu.entryconfig("Delete", state="disabled")
+            else:
+                instance_menu.entryconfig("Delete", state="normal")
+            instance_menu.tk_popup(event.x_root, event.y_root)
+            instance_menu.grab_release()
 
-        def delete_selected():
+        listbox.bind("<Button-3>", show_inst_menu)
+
+        def delete_inst():
             sel = listbox.curselection()
             if not sel:
                 custom_error(dialog, "Error", "No instance selected.")
                 return
-            instance_name = listbox.get(sel[0])
-            if instance_name == "Global Instance":
+            inst = listbox.get(sel[0])
+            if inst == "Global Instance":
                 custom_error(dialog, "Error", "Cannot delete the Global Instance.")
                 return
-            instance_path = os.path.join(self.game["INSTANCES_DIR"], instance_name)
-            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete",
-                                  f"Delete instance '{instance_name}'?"):
+            inst_path = os.path.join(self.game["INSTANCES_DIR"], inst)
+            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete instance '{inst}'?"):
                 try:
-                    shutil.rmtree(instance_path)
+                    shutil.rmtree(inst_path)
                     refresh_list()
                 except Exception as e:
                     custom_error(dialog, "Error", f"Failed to delete instance: {e}")
 
-        def open_folder():
+        def clone_inst():
             sel = listbox.curselection()
             if not sel:
                 custom_error(dialog, "Error", "No instance selected.")
                 return
-            instance_name = listbox.get(sel[0])
-            if instance_name == "Global Instance":
+            inst = listbox.get(sel[0])
+            clone_instance(inst, self.game)
+            refresh_list()
+
+        def open_inst():
+            sel = listbox.curselection()
+            if not sel:
+                custom_error(dialog, "Error", "No instance selected.")
+                return
+            inst = listbox.get(sel[0])
+            if inst == "Global Instance":
                 folder = find_install_location(self.game)
                 if not folder:
                     custom_error(dialog, "Error", "Installation not found.")
                     return
             else:
-                folder = os.path.join(self.game["INSTANCES_DIR"], instance_name)
+                folder = os.path.join(self.game["INSTANCES_DIR"], inst)
             if os.path.exists(folder):
                 subprocess.Popen(["explorer", folder])
             else:
                 custom_error(dialog, "Error", "Folder not found.")
 
-        tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=5)
+        tk.Button(btn_frame, text="Create New", command=lambda: [self.new_instance_dialog(), refresh_list()]).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-
         dialog.wait_window()
 
     def new_instance_dialog(self):
@@ -492,14 +585,12 @@ class GameTab(tk.Frame):
 
         tk.Label(dialog, text="Instance Name:").pack(pady=5)
         instance_var = tk.StringVar()
-        name_entry = tk.Entry(dialog, textvariable=instance_var)
-        name_entry.pack(pady=5)
+        tk.Entry(dialog, textvariable=instance_var).pack(pady=5)
 
         error_label = tk.Label(dialog, text="", fg="red")
         error_label.pack(pady=5)
 
         tk.Label(dialog, text="Version:").pack(pady=5)
-        # Allow all versions including "Steam Version".
         custom_versions = get_version_options(self.game)
         if not custom_versions:
             messagebox.showerror("Error", "No versions available. Please create a new version first.")
@@ -507,24 +598,22 @@ class GameTab(tk.Frame):
             return
         selected_version = tk.StringVar(dialog)
         selected_version.set(custom_versions[0])
-        version_menu = tk.OptionMenu(dialog, selected_version, *custom_versions)
-        version_menu.pack(pady=5)
+        tk.OptionMenu(dialog, selected_version, *custom_versions).pack(pady=5)
 
         def on_create():
-            instance_name = instance_var.get().strip()
-            if not instance_name:
+            inst_name = instance_var.get().strip()
+            if not inst_name:
                 error_label.config(text="Instance name cannot be empty.")
                 return
-            if len(instance_name) > 25:
+            if len(inst_name) > 25:
                 error_label.config(text="Instance name cannot exceed 25 characters.")
                 return
-            if os.path.exists(os.path.join(self.game["INSTANCES_DIR"], instance_name)):
+            if os.path.exists(os.path.join(self.game["INSTANCES_DIR"], inst_name)):
                 error_label.config(text="An instance with that name already exists.")
                 return
-            version = selected_version.get()
-            # If user selects Steam Version, ask for confirmation.
+            ver = selected_version.get()
             force_copy = False
-            if version == self.game["VANILLA_VERSION"]:
+            if ver == self.game["VANILLA_VERSION"]:
                 proceed = centered_askyesno(dialog, "Confirm",
                     "Using this version may lead to issues if you have existing mods or classic installed.\n"
                     "Please verify your CastleMiner game files if you have not already.\n"
@@ -533,7 +622,7 @@ class GameTab(tk.Frame):
                     return
                 else:
                     force_copy = True
-            result = create_instance(instance_name, version, self.game, force_copy=force_copy)
+            result = create_instance(inst_name, ver, self.game, force_copy=force_copy)
             if result is None or result == "exists":
                 error_label.config(text="Failed to create instance.")
             else:
@@ -549,26 +638,24 @@ class GameTab(tk.Frame):
     def populate_instances(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        # First, add the Global Instance if the base game installation is detected.
         global_install = find_install_location(self.game)
         if global_install:
             global_info = get_global_instance_info(self.game)
             self.tree.insert("", "end", values=(global_info.get("instance", "Global Instance"),
                                                  global_info.get("version", self.game["VANILLA_VERSION"]),
                                                  global_info.get("last_played", "")))
-        # Add modded instances (exclude any folder named "Global Instance")
-        for instance in list_instances(self.game):
-            instance_path = os.path.join(self.game["INSTANCES_DIR"], instance)
-            info_file = os.path.join(instance_path, "instance_info.json")
+        for inst in list_instances(self.game):
+            inst_path = os.path.join(self.game["INSTANCES_DIR"], inst)
+            info_file = os.path.join(inst_path, "instance_info.json")
             if os.path.exists(info_file):
                 try:
                     with open(info_file, "r") as f:
                         info = json.load(f)
                 except Exception:
-                    info = {"instance": instance, "version": "", "last_played": ""}
+                    info = {"instance": inst, "version": "", "last_played": ""}
             else:
-                info = {"instance": instance, "version": "", "last_played": ""}
-            self.tree.insert("", "end", values=(info.get("instance", instance),
+                info = {"instance": inst, "version": "", "last_played": ""}
+            self.tree.insert("", "end", values=(info.get("instance", inst),
                                                  info.get("version", ""),
                                                  info.get("last_played", "")))
         self.sort_tree(self.sort_column, self.sort_reverse)
@@ -583,22 +670,20 @@ class GameTab(tk.Frame):
         self.sort_tree(self.sort_column, self.sort_reverse)
 
     def sort_tree(self, col, reverse):
-        l = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
+        items = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
         if col == "last_played":
             def conv(x):
                 try:
                     return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
                 except Exception:
                     return datetime.datetime.min
-            l = [(conv(val), k) for (val, k) in l]
-        l.sort(reverse=reverse)
-        for index, (val, k) in enumerate(l):
+            items = [(conv(val), k) for (val, k) in items]
+        items.sort(reverse=reverse)
+        for index, (val, k) in enumerate(items):
             self.tree.move(k, "", index)
 
     def on_instance_select(self, event):
-        selected = self.tree.selection()
-        if selected:
-            # In the main window, only enable Play and Open Folder.
+        if self.tree.selection():
             self.play_btn.config(state=tk.NORMAL)
             self.open_btn.config(state=tk.NORMAL)
         else:
@@ -613,27 +698,25 @@ class GameTab(tk.Frame):
         selected = self.tree.selection()
         if selected:
             item = self.tree.item(selected[0])
-            instance_name = item["values"][0]
-            if instance_name == "Global Instance":
+            inst_name = item["values"][0]
+            if inst_name == "Global Instance":
                 return find_install_location(self.game)
             else:
-                return os.path.join(self.game["INSTANCES_DIR"], instance_name)
+                return os.path.join(self.game["INSTANCES_DIR"], inst_name)
         return None
 
     def start_instance(self):
         selected = self.tree.selection()
         if selected:
             item = self.tree.item(selected[0])
-            instance_name = item["values"][0]
+            inst_name = item["values"][0]
             path = self.get_selected_instance_path()
             if path:
                 launch_game(path, self.game)
-                # For Global Instance, update last played in the global info file.
-                if instance_name == "Global Instance":
+                if inst_name == "Global Instance":
                     global_info = get_global_instance_info(self.game)
                     global_info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     write_global_instance_info(self.game, global_info)
-                # For modded instances, update instance_info.json.
                 else:
                     info_file = os.path.join(path, "instance_info.json")
                     info = {}
@@ -671,61 +754,73 @@ class GameTab(tk.Frame):
 
         refresh_list()
 
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=5)
+        version_menu = tk.Menu(listbox, tearoff=0)
+        version_menu.add_command(label="Delete", command=lambda: delete_version())
+        version_menu.add_command(label="Clone", command=lambda: in_clone_version())
+        version_menu.add_command(label="Open Folder", command=lambda: open_version())
 
-        def create_new():
-            self.new_version_dialog()
-            refresh_list()
+        def show_version_menu(event):
+            index = listbox.nearest(event.y)
+            listbox.selection_clear(0, tk.END)
+            listbox.selection_set(index)
+            ver = listbox.get(index)
+            if ver == self.game["VANILLA_VERSION"]:
+                version_menu.entryconfig("Delete", state="disabled")
+            else:
+                version_menu.entryconfig("Delete", state="normal")
+            version_menu.tk_popup(event.x_root, event.y_root)
+            version_menu.grab_release()
 
-        def delete_selected():
+        listbox.bind("<Button-3>", show_version_menu)
+
+        def delete_version():
             sel = listbox.curselection()
             if not sel:
                 custom_error(dialog, "Error", "No version selected.")
                 return
-            version_name = listbox.get(sel[0])
-            if version_name == self.game["VANILLA_VERSION"]:
+            ver = listbox.get(sel[0])
+            if ver == self.game["VANILLA_VERSION"]:
                 custom_error(dialog, "Error", "Cannot delete the vanilla version.")
                 return
-            version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
-            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete version '{version_name}'?"):
+            ver_path = os.path.join(self.game["VERSIONS_DIR"], ver)
+            if centered_askyesno(self.winfo_toplevel(), "Confirm Delete", f"Delete version '{ver}'?"):
                 try:
-                    shutil.rmtree(version_path)
+                    shutil.rmtree(ver_path)
                     refresh_list()
                 except Exception as e:
                     custom_error(dialog, "Error", f"Failed to delete version: {e}")
 
-        def open_folder():
+        def in_clone_version():
             sel = listbox.curselection()
             if not sel:
                 custom_error(dialog, "Error", "No version selected.")
                 return
-            version_name = listbox.get(sel[0])
-            if version_name == self.game["VANILLA_VERSION"]:
+            ver = listbox.get(sel[0])
+            clone_version(ver, self.game)  # calls helper
+            refresh_list()
+
+        def open_version():
+            sel = listbox.curselection()
+            if not sel:
+                custom_error(dialog, "Error", "No version selected.")
+                return
+            ver = listbox.get(sel[0])
+            if ver == self.game["VANILLA_VERSION"]:
                 folder = find_install_location(self.game)
                 if not folder:
                     custom_error(dialog, "Error", "Installation not found.")
                     return
             else:
-                folder = os.path.join(self.game["VERSIONS_DIR"], version_name)
+                folder = os.path.join(self.game["VERSIONS_DIR"], ver)
             if os.path.exists(folder):
                 subprocess.Popen(["explorer", folder])
             else:
                 custom_error(dialog, "Error", "Folder not found.")
 
-        tk.Button(btn_frame, text="Create New", command=create_new).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Delete Selected", command=delete_selected).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Open Folder", command=open_folder).pack(side=tk.LEFT, padx=5)
+        btn_frame = tk.Frame(dialog)
+        btn_frame.pack(pady=5)
+        tk.Button(btn_frame, text="Create New", command=lambda: [self.new_version_dialog(), refresh_list()]).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Close", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-
-        def on_select(event):
-            sel = listbox.curselection()
-            if sel:
-                version_name = listbox.get(sel[0])
-                if version_name == self.game["VANILLA_VERSION"]:
-                    pass  # No deletion allowed.
-            # No need to disable any buttons here since deletion is handled inside delete_selected.
-        listbox.bind("<<ListboxSelect>>", on_select)
         dialog.wait_window()
 
 
@@ -749,7 +844,6 @@ class LauncherGUI(tk.Tk):
 
 
 def initial_setup():
-    """Perform initial setup: create required folders for each game."""
     for game in games.values():
         ensure_game_folders(game)
 
