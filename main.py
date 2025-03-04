@@ -16,7 +16,6 @@ games = {
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
         "EXE_NAME": "CastleMinerZ.exe",
         "VANILLA_VERSION": "Vanilla 1.9.8.0",
-        # For auto-detection, we assume common install paths:
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Z",
             r"C:\Program Files\Steam\steamapps\common\CastleMiner Z"
@@ -48,10 +47,8 @@ def ensure_game_folders(game):
 def cache_base_game_for_game(base_game_path, game):
     """Cache the base game for this game if not already cached."""
     cache_dir = game["GAME_CACHE"]
-    # We'll check if the cache folder exists and is nonempty.
     if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
         print(f"[INFO] Caching base game from: {base_game_path}")
-        # If cache folder exists but is empty, remove it to allow copytree.
         if os.path.exists(cache_dir):
             shutil.rmtree(cache_dir)
         shutil.copytree(base_game_path, cache_dir)
@@ -70,21 +67,59 @@ def find_install_location(game):
     return None
 
 
-def auto_detect_install_location(game):
+class CacheDialog(tk.Toplevel):
     """
-    Attempt to auto-detect the installation location.
-    If found, ask the user to confirm.
-    If not, prompt the user to input it manually.
+    A modal dialog that prompts for an installation path.
+    It shows an error message in red if the path is invalid.
+    The dialog will not close until a valid path is provided or the user cancels.
     """
-    install_path = find_install_location(game)
-    if install_path:
-        if messagebox.askyesno("Confirm Install Location",
-                               f"Detected installation at:\n{install_path}\nIs this correct?"):
-            return install_path
-    # If auto-detection fails or user declines, ask for manual entry.
-    manual_path = simpledialog.askstring("Install Location",
-                                         f"Enter the full path to your installation of {game}:")
-    return manual_path
+    def __init__(self, master, game_name, game):
+        super().__init__(master)
+        self.game = game
+        self.game_name = game_name
+        self.title(f"Set Up {game_name}")
+        self.geometry("400x200")
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()  # make modal
+
+        self.result = None
+
+        tk.Label(self, text=f"Enter installation path for {game_name}:").pack(pady=10)
+        self.entry = tk.Entry(self, width=50)
+        self.entry.pack(pady=5)
+        # Pre-fill with auto-detected path if available
+        detected = find_install_location(game)
+        if detected:
+            self.entry.insert(0, detected)
+
+        self.error_label = tk.Label(self, text="", fg="red")
+        self.error_label.pack(pady=5)
+
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(pady=10)
+        verify_btn = tk.Button(btn_frame, text="Verify", command=self.verify_path)
+        verify_btn.grid(row=0, column=0, padx=5)
+        cancel_btn = tk.Button(btn_frame, text="Cancel", command=self.cancel)
+        cancel_btn.grid(row=0, column=1, padx=5)
+
+        self.protocol("WM_DELETE_WINDOW", self.cancel)
+        self.wait_window(self)
+
+    def verify_path(self):
+        path = self.entry.get().strip()
+        exe_full_path = os.path.join(path, self.game["EXE_NAME"])
+        if os.path.exists(path) and os.path.exists(exe_full_path):
+            # Valid path: cache the base game
+            cache_base_game_for_game(path, self.game)
+            self.result = path
+            self.destroy()
+        else:
+            self.error_label.config(text="Invalid path or executable not found. Please try again.")
+
+    def cancel(self):
+        self.result = None
+        self.destroy()
 
 
 def overlay_version_files(instance_path, version, game):
@@ -95,12 +130,10 @@ def overlay_version_files(instance_path, version, game):
     """
     if version == game["VANILLA_VERSION"]:
         return
-
     version_path = os.path.join(game["VERSIONS_DIR"], version)
     if not os.path.exists(version_path):
         print(f"[ERROR] Version files for '{version}' not found in Versions folder!")
         return
-
     for root, _, files in os.walk(version_path):
         for file in files:
             relative_path = os.path.relpath(root, version_path)
@@ -119,7 +152,6 @@ def create_instance(instance_name, version, game):
     if os.path.exists(instance_path):
         messagebox.showerror("Error", f"An instance named '{instance_name}' already exists!")
         return None
-
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         shutil.copytree(game["GAME_CACHE"], instance_path)
@@ -136,7 +168,6 @@ def launch_game(instance_path, game):
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
     with open(app_id_path, "w") as f:
         f.write("253430")
-
     if os.path.exists(game_exe):
         print("[INFO] Launching game from instance...")
         env = os.environ.copy()
@@ -193,13 +224,14 @@ def get_version_options(game):
 class HomeTab(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        label = tk.Label(self, text="Welcome to CMLauncher!\n\n"
-                                    "This launcher allows you to manage multiple instances "
-                                    "of your games and apply different versions/modifications.\n\n"
-                                    "Use the tabs above to manage each game. For a game tab to work, "
-                                    "its base game must be cached. If not, the launcher will attempt to auto-detect "
-                                    "the installation and prompt you accordingly.\n\n"
-                                    "Enjoy!", justify=tk.LEFT)
+        text = (
+            "Welcome to CMLauncher!\n\n"
+            "This launcher allows you to manage multiple instances of your games and apply "
+            "different versions/modifications.\n\n"
+            "Use the tabs above to manage each game. For each game, you must first cache the base game. "
+            "If the base game is not cached, the game tab will be greyed out. Click on the overlay to set up the game."
+        )
+        label = tk.Label(self, text=text, justify=tk.LEFT)
         label.pack(padx=20, pady=20, anchor="w")
 
 
@@ -209,6 +241,7 @@ class GameTab(tk.Frame):
         self.game_name = game_name
         self.game = game
         ensure_game_folders(self.game)
+        self.overlay = None  # To hold the setup overlay
         self.create_widgets()
         self.populate_instances()
         self.check_base_game()
@@ -216,14 +249,6 @@ class GameTab(tk.Frame):
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
         header.pack(pady=5)
-
-        # Label to display base game status
-        self.status_label = tk.Label(self, text="", fg="red")
-        self.status_label.pack(pady=5)
-
-        # Verify button will appear if base game not cached.
-        self.verify_button = tk.Button(self, text="Verify Base Game", command=self.verify_base_game)
-        self.verify_button.pack(pady=5)
 
         # Instance list and controls
         self.instance_listbox = tk.Listbox(self, height=10)
@@ -245,24 +270,31 @@ class GameTab(tk.Frame):
         # Check if base game is cached (i.e. GAME_CACHE exists and is non-empty)
         cache_dir = self.game["GAME_CACHE"]
         if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
-            self.status_label.config(text="Base game not cached!")
-            self.disable_instance_controls()
+            self.show_setup_overlay()
         else:
-            self.status_label.config(text="Base game cached.")
-            self.enable_instance_controls()
+            self.hide_setup_overlay()
 
-    def verify_base_game(self):
-        # Try auto-detection; if it fails, ask manually.
-        detected = find_install_location(self.game)
-        if detected:
-            if messagebox.askyesno("Confirm", f"Detected installation at:\n{detected}\nCache base game from here?"):
-                cache_base_game_for_game(detected, self.game)
-        else:
-            manual = simpledialog.askstring("Install Location", f"Enter full path to {self.game_name} installation:")
-            if manual and os.path.exists(os.path.join(manual, self.game["EXE_NAME"])):
-                cache_base_game_for_game(manual, self.game)
-            else:
-                messagebox.showerror("Error", "Invalid installation path provided.")
+    def show_setup_overlay(self):
+        # Overlay a frame covering the tab that disables controls and prompts for setup.
+        if self.overlay is None:
+            self.overlay = tk.Frame(self, bg="light grey")
+            self.overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+            msg = tk.Label(self.overlay, text="Base game not cached!\nClick the button below to set up.",
+                           fg="red", bg="light grey", font=("Arial", 14))
+            msg.pack(pady=20)
+            setup_btn = tk.Button(self.overlay, text="Set Up Game", command=self.open_cache_dialog)
+            setup_btn.pack()
+        # Also disable instance controls.
+        self.set_action_buttons_state(False)
+
+    def hide_setup_overlay(self):
+        if self.overlay:
+            self.overlay.destroy()
+            self.overlay = None
+
+    def open_cache_dialog(self):
+        dlg = CacheDialog(self, self.game_name, self.game)
+        # After dialog closes, re-check the cache.
         self.check_base_game()
         self.populate_instances()
 
@@ -335,17 +367,6 @@ class GameTab(tk.Frame):
         path = self.get_selected_instance_path()
         if path and delete_instance(path):
             self.populate_instances()
-
-    # New methods added to enable/disable controls.
-    def enable_instance_controls(self):
-        self.start_btn.config(state=tk.NORMAL)
-        self.open_btn.config(state=tk.NORMAL)
-        self.delete_btn.config(state=tk.NORMAL)
-
-    def disable_instance_controls(self):
-        self.start_btn.config(state=tk.DISABLED)
-        self.open_btn.config(state=tk.DISABLED)
-        self.delete_btn.config(state=tk.DISABLED)
 
 
 class LauncherGUI(tk.Tk):
