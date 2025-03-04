@@ -214,6 +214,7 @@ def clone_instance(instance_name, game):
             return
     else:
         source = os.path.join(game["INSTANCES_DIR"], instance_name)
+
     def validate_instance_name(name):
         if not name:
             return "Instance name cannot be empty."
@@ -225,6 +226,7 @@ def clone_instance(instance_name, game):
         if os.path.exists(new_path):
             return "An instance with that name already exists."
         return None
+
     new_name = custom_validated_askstring(tk._default_root, "Clone Instance",
                                           "Enter new instance name:", validate_instance_name)
     if not new_name:
@@ -234,6 +236,9 @@ def clone_instance(instance_name, game):
         shutil.copytree(source, new_path)
         info = get_instance_info(new_path)
         info["instance"] = new_name
+        if instance_name == LOCAL_INSTANCE:
+            info["version"] = LOCAL_VERSION
+        info["last_played"] = ""
         write_instance_info(new_path, info)
         custom_info(tk._default_root, "Clone", f"Instance cloned as '{new_name}'.")
     except Exception as e:
