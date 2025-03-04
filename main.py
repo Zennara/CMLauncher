@@ -68,12 +68,44 @@ def find_install_location(game):
     return None
 
 
+def center_window(window, parent):
+    window.update_idletasks()
+    parent.update_idletasks()
+    parent_x = parent.winfo_rootx()
+    parent_y = parent.winfo_rooty()
+    parent_width = parent.winfo_width()
+    parent_height = parent.winfo_height()
+    window_width = window.winfo_width()
+    window_height = window.winfo_height()
+    x = parent_x + (parent_width - window_width) // 2
+    y = parent_y + (parent_height - window_height) // 2
+    window.geometry(f"+{x}+{y}")
+
+
+def centered_askyesno(parent, title, message):
+    result = [None]
+    dialog = tk.Toplevel(parent)
+    dialog.title(title)
+    dialog.geometry("300x150")
+    dialog.transient(parent)
+    dialog.grab_set()
+    center_window(dialog, parent)
+    tk.Label(dialog, text=message, wraplength=280, justify=tk.LEFT).pack(pady=20)
+    button_frame = tk.Frame(dialog)
+    button_frame.pack(pady=10)
+    def on_yes():
+        result[0] = True
+        dialog.destroy()
+    def on_no():
+        result[0] = False
+        dialog.destroy()
+    tk.Button(button_frame, text="Yes", command=on_yes, width=10).pack(side=tk.LEFT, padx=10)
+    tk.Button(button_frame, text="No", command=on_no, width=10).pack(side=tk.LEFT, padx=10)
+    dialog.wait_window()
+    return result[0]
+
+
 class CacheDialog(tk.Toplevel):
-    """
-    A modal dialog that prompts for an installation path.
-    It shows an error message in red if the path is invalid.
-    The dialog will not close until a valid path is provided or the user cancels.
-    """
     def __init__(self, master, game_name, game):
         super().__init__(master)
         self.game = game
@@ -83,6 +115,13 @@ class CacheDialog(tk.Toplevel):
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()  # Make the dialog modal.
+
+        # Withdraw the window to hide it until centered.
+        self.withdraw()
+        self.update_idletasks()  # Ensure geometry is calculated.
+        center_window(self, self.master.winfo_toplevel())
+        self.deiconify()  # Now show the window
+
         self.attributes("-topmost", True)
         self.after_idle(lambda: self.attributes("-topmost", False))
 
@@ -91,7 +130,6 @@ class CacheDialog(tk.Toplevel):
         tk.Label(self, text=f"Enter installation path for {game_name}:").pack(pady=10)
         self.entry = tk.Entry(self, width=50)
         self.entry.pack(pady=5)
-        # Pre-fill with auto-detected path if available
         detected = find_install_location(game)
         if detected:
             self.entry.insert(0, detected)
@@ -154,7 +192,6 @@ def get_instance_info(instance_path):
                 return json.load(f)
         except Exception:
             pass
-    # Return defaults if not present.
     return {"instance": os.path.basename(instance_path), "version": "", "last_played": ""}
 
 
@@ -169,9 +206,9 @@ def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
     It is created by copying the GAME_CACHE and then overlaying version files.
+    Also writes instance metadata.
     Returns the instance path on success; if the instance already exists, returns "exists";
     or returns an error message string if something went wrong.
-    Also writes instance metadata.
     """
     instance_path = os.path.join(game["INSTANCES_DIR"], instance_name)
     if os.path.exists(instance_path):
@@ -180,7 +217,6 @@ def create_instance(instance_name, version, game):
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         shutil.copytree(game["GAME_CACHE"], instance_path)
         overlay_version_files(instance_path, version, game)
-        # Save instance metadata.
         info = {
             "instance": instance_name,
             "version": version,
@@ -204,9 +240,8 @@ def launch_game(instance_path, game):
         env["PATH"] = instance_path + ";" + env["PATH"]
         env["PWD"] = instance_path
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
-        # Update last played in metadata.
         info = get_instance_info(instance_path)
-        info["last_played"] = datetime.datetime.now().isoformat(sep=" ", timespec="seconds")
+        info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         write_instance_info(instance_path, info)
     else:
         messagebox.showerror("Error", "Game executable not found in the instance folder.")
@@ -221,8 +256,8 @@ def open_instance_folder(instance_path):
 
 
 def delete_instance(instance_path):
-    """Delete the given instance folder after confirmation."""
-    if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this instance?"):
+    """Delete the given instance folder after confirmation using a centered dialog."""
+    if centered_askyesno(tk._default_root, "Confirm Delete", "Are you sure you want to delete this instance?"):
         try:
             shutil.rmtree(instance_path)
             return True
@@ -250,10 +285,6 @@ def get_version_options(game):
     return options
 
 
-import json
-import datetime
-
-
 def create_new_version(game):
     """
     Open a modal dialog to create a new version for the game.
@@ -264,16 +295,26 @@ def create_new_version(game):
     dialog.geometry("300x150")
     dialog.transient()
     dialog.grab_set()
+    center_window(dialog, app)
 
     tk.Label(dialog, text="Version Name:").pack(pady=5)
-    name_entry = tk.Entry(dialog)
+    version_var = tk.StringVar()
+    version_var.set("")
+    name_entry = tk.Entry(dialog, textvariable=version_var)
     name_entry.pack(pady=5)
+
+    # Limit entry to 25 characters.
+    def limit_version(*args):
+        value = version_var.get()
+        if len(value) > 25:
+            version_var.set(value[:25])
+    version_var.trace("w", limit_version)
 
     error_label = tk.Label(dialog, text="", fg="red")
     error_label.pack(pady=5)
 
     def on_create():
-        version_name = name_entry.get().strip()
+        version_name = version_var.get().strip()
         if not version_name:
             error_label.config(text="Version name cannot be empty.")
             return
@@ -340,7 +381,7 @@ class GameTab(tk.Frame):
 
         center_frame = tk.Frame(btn_frame)
         center_frame.pack(side=tk.LEFT, expand=True)
-        self.play_btn = tk.Button(center_frame, text="Play", command=self.start_instance)
+        self.play_btn = tk.Button(center_frame, text="   Play   ", command=self.start_instance)
         self.play_btn.pack()
 
         right_frame = tk.Frame(btn_frame)
@@ -396,9 +437,11 @@ class GameTab(tk.Frame):
         dialog.geometry("300x200")
         dialog.transient(self)
         dialog.grab_set()
+        center_window(dialog, self)  # Center the dialog relative to the main window
 
         tk.Label(dialog, text="Instance Name:").pack(pady=5)
-        name_entry = tk.Entry(dialog)
+        instance_var = tk.StringVar()
+        name_entry = tk.Entry(dialog, textvariable=instance_var)
         name_entry.pack(pady=5)
 
         error_label = tk.Label(dialog, text="", fg="red")
@@ -412,9 +455,12 @@ class GameTab(tk.Frame):
         version_menu.pack(pady=5)
 
         def on_create():
-            instance_name = name_entry.get().strip()
+            instance_name = instance_var.get().strip()
             if not instance_name:
                 error_label.config(text="Instance name cannot be empty.")
+                return
+            if len(instance_name) > 25:
+                error_label.config(text="Instance name cannot exceed 25 characters.")
                 return
             if os.path.exists(os.path.join(self.game["INSTANCES_DIR"], instance_name)):
                 error_label.config(text="An instance with that name already exists.")
@@ -436,18 +482,23 @@ class GameTab(tk.Frame):
         dialog.geometry("300x150")
         dialog.transient(self)
         dialog.grab_set()
+        center_window(dialog, self)  # Center the dialog relative to the main window
 
         tk.Label(dialog, text="Version Name:").pack(pady=5)
-        name_entry = tk.Entry(dialog)
+        version_var = tk.StringVar()
+        name_entry = tk.Entry(dialog, textvariable=version_var)
         name_entry.pack(pady=5)
 
         error_label = tk.Label(dialog, text="", fg="red")
         error_label.pack(pady=5)
 
         def on_create():
-            version_name = name_entry.get().strip()
+            version_name = version_var.get().strip()
             if not version_name:
                 error_label.config(text="Version name cannot be empty.")
+                return
+            if len(version_name) > 25:
+                error_label.config(text="Version name cannot exceed 25 characters.")
                 return
             version_path = os.path.join(self.game["VERSIONS_DIR"], version_name)
             if os.path.exists(version_path):
@@ -465,7 +516,6 @@ class GameTab(tk.Frame):
     def populate_instances(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-        # Gather instance info from metadata file.
         for instance in list_instances(self.game):
             instance_path = os.path.join(self.game["INSTANCES_DIR"], instance)
             info_file = os.path.join(instance_path, "instance_info.json")
@@ -484,7 +534,6 @@ class GameTab(tk.Frame):
         self.set_action_buttons_state(False)
 
     def sort_by(self, column):
-        # Toggle sort order if column is same, else ascending.
         if self.sort_column == column:
             self.sort_reverse = not self.sort_reverse
         else:
@@ -494,7 +543,6 @@ class GameTab(tk.Frame):
 
     def sort_tree(self, col, reverse):
         l = [(self.tree.set(k, col), k) for k in self.tree.get_children("")]
-        # For "last_played", convert empty strings to a very old date so they sort consistently.
         if col == "last_played":
             def conv(x):
                 try:
@@ -530,7 +578,6 @@ class GameTab(tk.Frame):
         path = self.get_selected_instance_path()
         if path:
             launch_game(path, self.game)
-            # Update last played in metadata and refresh tree.
             info_file = os.path.join(path, "instance_info.json")
             info = {}
             if os.path.exists(info_file):
@@ -565,11 +612,9 @@ class LauncherGUI(tk.Tk):
         notebook = ttk.Notebook(self)
         notebook.pack(fill=tk.BOTH, expand=True)
 
-        # Home tab
         home_tab = HomeTab(notebook)
         notebook.add(home_tab, text="Home")
 
-        # For each game, create a tab.
         for game_name, game in games.items():
             game_tab = GameTab(notebook, game_name, game)
             notebook.add(game_tab, text=game_name)
@@ -592,8 +637,6 @@ def initial_setup():
 
 
 if __name__ == "__main__":
-    import json
-    import datetime
     initial_setup()
     app = LauncherGUI()
     app.mainloop()
