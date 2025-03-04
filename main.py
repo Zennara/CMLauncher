@@ -81,7 +81,10 @@ class CacheDialog(tk.Toplevel):
         self.geometry("400x200")
         self.resizable(False, False)
         self.transient(master)
-        self.grab_set()  # make modal
+        self.grab_set()  # Make the dialog modal.
+        # Ensure it appears on top.
+        self.attributes("-topmost", True)
+        self.after_idle(lambda: self.attributes("-topmost", False))
 
         self.result = None
 
@@ -302,6 +305,8 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Create New Instance")
         dialog.geometry("300x200")
+        dialog.transient(self)   # Make dialog appear in front of current tab
+        dialog.grab_set()        # Lock other tabs until done
 
         tk.Label(dialog, text="Instance Name:").pack(pady=5)
         name_entry = tk.Entry(dialog)
@@ -322,11 +327,12 @@ class GameTab(tk.Frame):
                 return
             path = create_instance(instance_name, version, self.game)
             if path:
-                messagebox.showinfo("Success", f"Instance '{instance_name}' created.")
+                messagebox.showinfo("Success", f"Instance '{instance_name}' created.", parent=dialog)
                 self.populate_instances()
                 dialog.destroy()
 
         tk.Button(dialog, text="Create Instance", command=on_create).pack(pady=10)
+        dialog.wait_window()  # Ensure dialog is closed before proceeding
 
     def populate_instances(self):
         self.instance_listbox.delete(0, tk.END)
