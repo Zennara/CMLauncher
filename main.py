@@ -747,7 +747,7 @@ class GameTab(tk.Frame):
                                                  info.get("version", ""),
                                                  info.get("last_played", "")))
         self.sort_tree(self.sort_column, self.sort_reverse)
-        self.set_action_buttons_state(True)
+        self.set_action_buttons_state(False)
 
     def sort_by(self, column):
         if self.sort_column == column:
