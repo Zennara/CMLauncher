@@ -9,8 +9,8 @@ LOCAL_INSTANCE = "Global Instance"
 # Define game configurations. Folders will be under Launcher/<GameName>/...
 games = {
     "CastleMiner Z": {
-        "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Versions"),
-        "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
+        "VERSIONS_DIR": os.path.join(BASE_DIR, "CMLauncher", "CastleMiner Z", "Versions"),
+        "INSTANCES_DIR": os.path.join(BASE_DIR, "CMLauncher", "CastleMiner Z", "Instances"),
         "APP_ID": 253430,
         "EXE_NAME": "CastleMinerZ.exe",
         "POSSIBLE_PATHS": [
@@ -19,8 +19,8 @@ games = {
         ]
     },
     "CastleMiner Warfare": {
-        "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Versions"),
-        "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Instances"),
+        "VERSIONS_DIR": os.path.join(BASE_DIR, "CMLauncher", "CastleMiner Warfare", "Versions"),
+        "INSTANCES_DIR": os.path.join(BASE_DIR, "CMLauncher", "CastleMiner Warfare", "Instances"),
         "APP_ID": 675210,
         "EXE_NAME": "CastleMinerWarfare.exe",
         "POSSIBLE_PATHS": [
