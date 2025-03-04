@@ -95,7 +95,8 @@ def launch_game(instance_path, game):
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
     with open(app_id_path, "w") as f:
-        f.write("253430")
+        app_id = game["APP_ID"]
+        f.write(str(app_id))
     if os.path.exists(game_exe):
         print("[INFO] Launching game from instance...")
         env = os.environ.copy()
@@ -634,7 +635,7 @@ class GameTab(tk.Frame):
         selected = self.tree.selection()
         if selected:
             item = self.tree.item(selected[0])
-            inst_name = item["values"][0]
+            inst_name = str(item["values"][0])
             if inst_name == LOCAL_INSTANCE:
                 return find_install_location(self.game)
             else:

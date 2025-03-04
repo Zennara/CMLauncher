@@ -11,6 +11,7 @@ games = {
     "CastleMiner Z": {
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
+        "APP_ID": 253430,
         "EXE_NAME": "CastleMinerZ.exe",
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Z",
@@ -20,6 +21,7 @@ games = {
     "CastleMiner Warfare": {
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Instances"),
+        "APP_ID": 675210,
         "EXE_NAME": "CastleMinerWarfare.exe",
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Warfare",
