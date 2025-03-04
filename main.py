@@ -362,7 +362,6 @@ def clone_instance(instance_name, game):
         return
     try:
         shutil.copytree(source, new_path)
-        # Update the cloned instance's metadata
         info = get_instance_info(new_path)
         info["instance"] = new_name
         write_instance_info(new_path, info)
@@ -370,13 +369,15 @@ def clone_instance(instance_name, game):
     except Exception as e:
         custom_error(tk._default_root, "Error", f"Failed to clone instance: {e}")
 
-
 def clone_version(version_name, game):
-    """Clone a version folder with a new name."""
+    """Clone a version folder with a new name (including the vanilla version)."""
     if version_name == game["VANILLA_VERSION"]:
-        custom_error(tk._default_root, "Error", "Cannot clone the vanilla version.")
-        return
-    source = os.path.join(game["VERSIONS_DIR"], version_name)
+        source = find_install_location(game)
+        if not source:
+            custom_error(tk._default_root, "Error", "Installation for vanilla version not found.")
+            return
+    else:
+        source = os.path.join(game["VERSIONS_DIR"], version_name)
     new_name = custom_askstring(tk._default_root, "Clone Version", "Enter new version name:")
     if not new_name:
         return
@@ -386,9 +387,10 @@ def clone_version(version_name, game):
         return
     try:
         shutil.copytree(source, new_path)
-        custom_info(tk._default_root,"Clone", f"Version cloned as '{new_name}'.")
+        custom_info(tk._default_root, "Clone", f"Version cloned as '{new_name}'.")
     except Exception as e:
         custom_error(tk._default_root, "Error", f"Failed to clone version: {e}")
+
 
 
 # ----------------------------
