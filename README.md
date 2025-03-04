@@ -10,8 +10,9 @@ A custom launcher for various games in the CastleMiner series that allows you to
 ## Installation
 
 1. Install the latest [release](https://github.com/Zennara/CMLauncher/releases).
-2. Move the downloaded executable to a suitable folder.
-3. Start the launcher by running the executable.
+2. Unzip the folder to your desired folder.
+3. Start the launcher by running `CMLauncher.bat`.
+4. Python will be prompted to install if it is not already.
     
 ## Terminology
 
