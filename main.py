@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, simpledialog
 import json
 import datetime
 
@@ -66,6 +66,18 @@ def center_window(window, parent):
     x = parent_x + (parent_width - window_width) // 2
     y = parent_y + (parent_height - window_height) // 2
     window.geometry(f"+{x}+{y}")
+
+
+def custom_info(parent, title, message):
+    dlg = tk.Toplevel(parent)
+    dlg.title(title)
+    dlg.geometry("300x150")
+    dlg.transient(parent)
+    dlg.grab_set()
+    center_window(dlg, parent)
+    tk.Label(dlg, text=message, wraplength=280, justify=tk.LEFT).pack(pady=20)
+    tk.Button(dlg, text="OK", command=dlg.destroy, width=10).pack(pady=10)
+    dlg.wait_window()
 
 
 def custom_error(parent, title, message):
@@ -214,7 +226,7 @@ def launch_game(instance_path, game):
         env["PWD"] = instance_path
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
     else:
-        messagebox.showerror("Error", "Game executable not found in the instance folder.")
+        custom_error(tk._default_root, "Error", "Game executable not found in the instance folder.")
 
 
 def open_instance_folder(instance_path):
@@ -222,7 +234,7 @@ def open_instance_folder(instance_path):
     if os.path.exists(instance_path):
         subprocess.Popen(["explorer", instance_path])
     else:
-        messagebox.showerror("Error", "Folder not found.")
+        custom_error(tk._default_root, "Error", "Folder not found.")
 
 
 def delete_instance(instance_path):
@@ -232,7 +244,7 @@ def delete_instance(instance_path):
             shutil.rmtree(instance_path)
             return True
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to delete instance: {e}")
+            custom_error(tk._default_root, "Error", f"Failed to delete instance: {e}")
     return False
 
 
@@ -318,7 +330,7 @@ def clone_instance(instance_name, game):
     if instance_name == "Global Instance":
         source = find_install_location(game)
         if not source:
-            messagebox.showerror("Error", "Global Instance source not found.")
+            custom_error(tk._default_root, "Error", "Global Instance source not found.")
             return
     else:
         source = os.path.join(game["INSTANCES_DIR"], instance_name)
@@ -327,7 +339,7 @@ def clone_instance(instance_name, game):
         return
     new_path = os.path.join(game["INSTANCES_DIR"], new_name)
     if os.path.exists(new_path):
-        messagebox.showerror("Error", "An instance with that name already exists.")
+        custom_error(tk._default_root, "Error", "An instance with that name already exists.")
         return
     try:
         shutil.copytree(source, new_path)
@@ -335,15 +347,15 @@ def clone_instance(instance_name, game):
         info = get_instance_info(new_path)
         info["instance"] = new_name
         write_instance_info(new_path, info)
-        messagebox.showinfo("Clone", f"Instance cloned as '{new_name}'.")
+        custom_info(tk._default_root, "Clone", f"Instance cloned as '{new_name}'.")
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to clone instance: {e}")
+        custom_error(tk._default_root, "Error", f"Failed to clone instance: {e}")
 
 
 def clone_version(version_name, game):
     """Clone a version folder with a new name."""
     if version_name == game["VANILLA_VERSION"]:
-        messagebox.showerror("Error", "Cannot clone the vanilla version.")
+        custom_error(tk._default_root, "Error", "Cannot clone the vanilla version.")
         return
     source = os.path.join(game["VERSIONS_DIR"], version_name)
     new_name = simpledialog.askstring("Clone Version", "Enter new version name:")
@@ -351,13 +363,13 @@ def clone_version(version_name, game):
         return
     new_path = os.path.join(game["VERSIONS_DIR"], new_name)
     if os.path.exists(new_path):
-        messagebox.showerror("Error", "A version with that name already exists.")
+        custom_error(tk._default_root, "Error", "A version with that name already exists.")
         return
     try:
         shutil.copytree(source, new_path)
-        messagebox.showinfo("Clone", f"Version cloned as '{new_name}'.")
+        custom_info(tk._default_root,"Clone", f"Version cloned as '{new_name}'.")
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to clone version: {e}")
+        custom_error(tk._default_root, "Error", f"Failed to clone version: {e}")
 
 
 # ----------------------------
@@ -411,7 +423,7 @@ class GameTab(tk.Frame):
                 self.create_widgets()
                 self.populate_instances()
             else:
-                messagebox.showerror("Error", f"Executable not found at provided path:\n{exe_path}")
+                custom_error(tk._default_root, "Error", f"Executable not found at provided path:\n{exe_path}")
 
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
@@ -429,7 +441,7 @@ class GameTab(tk.Frame):
 
         center_frame = tk.Frame(btn_frame)
         center_frame.pack(side=tk.LEFT, expand=True)
-        self.play_btn = tk.Button(center_frame, text="   Play   ", command=self.start_instance)
+        self.play_btn = tk.Button(center_frame, text="   Play   ", command=self.start_instance, state=tk.DISABLED)
         self.play_btn.pack()
 
         right_frame = tk.Frame(btn_frame)
@@ -597,7 +609,7 @@ class GameTab(tk.Frame):
         tk.Label(dialog, text="Version:").pack(pady=5)
         custom_versions = get_version_options(self.game)
         if not custom_versions:
-            messagebox.showerror("Error", "No versions available. Please create a new version first.")
+            custom_error(tk._default_root, "Error", "No versions available. Please create a new version first.")
             dialog.destroy()
             return
         selected_version = tk.StringVar(dialog)
