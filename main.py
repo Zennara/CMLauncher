@@ -6,36 +6,10 @@ from tkinter import ttk
 import json
 import datetime
 
+from config import LOCAL_VERSION, LOCAL_INSTANCE, games
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
-
-# Set BASE_DIR to the folder where this script is located.
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-LOCAL_VERSION = "Steam Version"
-LOCAL_INSTANCE = "Global Instance"
-
-# Define game configurations. Folders will be under Launcher/<GameName>/...
-games = {
-    "CastleMiner Z": {
-        "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Versions"),
-        "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
-        "EXE_NAME": "CastleMinerZ.exe",
-        "POSSIBLE_PATHS": [
-            r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Z",
-            r"C:\Program Files\Steam\steamapps\common\CastleMiner Z"
-        ]
-    },
-    "CastleMiner Warfare": {
-        "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Versions"),
-        "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Instances"),
-        "EXE_NAME": "CastleMinerWarfare.exe",
-        "POSSIBLE_PATHS": [
-            r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Warfare",
-            r"C:\Program Files\Steam\steamapps\common\CastleMiner Warfare"
-        ]
-    }
-}
+from instance_info import write_instance_info, get_instance_info, get_global_instance_info, write_global_instance_info
 
 
 def ensure_game_folders(game):
@@ -77,46 +51,6 @@ def overlay_version_files(instance_path, version, game):
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             shutil.copy2(os.path.join(root, file), dest_path)
             print(f"[INFO] Overlaying file: {dest_path}")
-
-
-def get_instance_info(instance_path):
-    """Read instance metadata from instance_info.json if available."""
-    info_file = os.path.join(instance_path, "instance_info.json")
-    if os.path.exists(info_file):
-        try:
-            with open(info_file, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"instance": os.path.basename(instance_path), "version": "", "last_played": ""}
-
-
-def write_instance_info(instance_path, info):
-    """Write instance metadata to instance_info.json."""
-    info_file = os.path.join(instance_path, "instance_info.json")
-    with open(info_file, "w") as f:
-        json.dump(info, f)
-
-
-# --- Global Instance Info --- #
-def get_global_instance_info(game):
-    """Retrieve last played and other info for the Global Instance."""
-    info_file = os.path.join(game["INSTANCES_DIR"], "Global_Instance_Info.json")
-    if os.path.exists(info_file):
-        try:
-            with open(info_file, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {"instance": LOCAL_INSTANCE, "version": LOCAL_VERSION, "last_played": ""}
-    else:
-        return {"instance": LOCAL_INSTANCE, "version": LOCAL_VERSION, "last_played": ""}
-
-
-def write_global_instance_info(game, info):
-    """Write Global Instance metadata to a file."""
-    info_file = os.path.join(game["INSTANCES_DIR"], "Global_Instance_Info.json")
-    with open(info_file, "w") as f:
-        json.dump(info, f)
 
 
 def create_instance(instance_name, version, game, force_copy=False):
