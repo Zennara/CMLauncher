@@ -8,6 +8,7 @@ import tkinter.font as tkFont
 import json
 import datetime
 
+from Launcher.config import MANAGE_ICON, PLUS_ICON, BASE_ICON
 from config import LOCAL_VERSION, LOCAL_INSTANCE, games, INSTALL_PATHS_FILE
 from custom_windows import custom_error, custom_validated_askstring, centered_askyesno, center_window, custom_askstring, \
     custom_info
@@ -176,6 +177,7 @@ def new_version_dialog(game, parent):
     dialog = tk.Toplevel(parent)
     dialog.title("Create New Version")
     dialog.geometry("300x150")
+    dialog.iconbitmap(MANAGE_ICON)
     dialog.transient(parent)
     dialog.grab_set()
     center_window(dialog, parent)
@@ -460,26 +462,16 @@ class GameTab(tk.Frame):
 
     def create_widgets(self):
         header = tk.Label(self, text=self.game_name, font=("Arial", 16))
-        header.pack(pady=5)
+        header.pack(pady=(15, 1))
 
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(fill=tk.X, pady=5)
+        bottom_frame = tk.Frame(self)
+        bottom_frame.pack(fill=tk.X, pady=10)
 
-        left_frame = tk.Frame(btn_frame)
-        left_frame.pack(side=tk.LEFT, padx=5)
-        self.versions_btn = tk.Button(left_frame, text="Versions", command=self.manage_versions_dialog)
-        self.versions_btn.pack(side=tk.LEFT, padx=2)
-        self.instances_btn = tk.Button(left_frame, text="Instances", command=self.manage_instances_dialog)
-        self.instances_btn.pack(side=tk.LEFT, padx=2)
+        self.versions_btn = tk.Button(bottom_frame, text="Versions", command=self.manage_versions_dialog)
+        self.versions_btn.pack(side=tk.RIGHT, padx=20)
 
-        right_frame = tk.Frame(btn_frame)
-        right_frame.pack(side=tk.RIGHT, padx=5)
-
-        self.selected_instance_label = tk.Label(right_frame, text="No instance selected", font=("Arial", 12))
-        self.selected_instance_label.pack(side=tk.LEFT, padx=5)
-
-        self.play_btn = tk.Button(right_frame, text="   Play   ", command=self.start_instance, state=tk.DISABLED)
-        self.play_btn.pack(side=tk.RIGHT)
+        self.instances_btn = tk.Button(bottom_frame, text="Instances", command=self.manage_instances_dialog)
+        self.instances_btn.pack(side=tk.LEFT, padx=20)
 
         self.tree = ttk.Treeview(self, columns=("instance", "version", "last_played"), show="headings")
         self.tree.heading("instance", text="Instance", command=lambda: self.sort_by("instance"))
@@ -491,6 +483,13 @@ class GameTab(tk.Frame):
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
 
+        self.play_btn = tk.Button(self, text="   Play   ", command=self.start_instance, state=tk.DISABLED,
+                                  font=("Arial", 18))
+        self.play_btn.pack(pady=(10, 0))
+
+        self.selected_instance_label = tk.Label(self, text="No instance selected", font=("Arial", 10))
+        self.selected_instance_label.pack(pady=(5, 15))
+
     def open_selected_main(self):
         path = self.get_selected_instance_path()
         if path:
@@ -500,6 +499,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Manage Instances")
         dialog.geometry("400x300")
+        dialog.iconbitmap(MANAGE_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -639,6 +639,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Create New Instance")
         dialog.geometry("300x200")
+        dialog.iconbitmap(PLUS_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -804,6 +805,7 @@ class GameTab(tk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("Manage Versions")
         dialog.geometry("400x300")
+        dialog.iconbitmap(MANAGE_ICON)
         dialog.transient(self)
         dialog.grab_set()
         center_window(dialog, self)
@@ -941,6 +943,7 @@ class LauncherGUI(tk.Tk):
         super().__init__()
         self.title("CMLauncher")
         self.geometry("600x500")
+        self.iconbitmap(BASE_ICON)
         self.create_tabs()
 
     def create_tabs(self):

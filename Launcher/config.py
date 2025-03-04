@@ -7,6 +7,13 @@ INSTALL_PATHS_FILE = os.path.join(BASE_DIR, "install_paths.json")
 LOCAL_VERSION = "Steam Version"
 LOCAL_INSTANCE = "Global Instance"
 
+BASE_ICON = "assets/icon.ico"
+MANAGE_ICON = "assets/manage.ico"
+PLUS_ICON = "assets/plus.ico"
+QUESTION_ICON = "assets/question.ico"
+EXCLAMATION_ICON = "assets/exclamation.ico"
+ERROR_ICON = "assets/error.ico"
+
 # Define game configurations. Folders will be under Launcher/<GameName>/...
 games = {
     "CastleMiner Z": {
