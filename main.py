@@ -15,7 +15,7 @@ games = {
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Z", "Instances"),
         "EXE_NAME": "CastleMinerZ.exe",
-        "VANILLA_VERSION": "Installed Version",
+        "VANILLA_VERSION": "Steam Version",  # Base game version name.
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Z",
             r"C:\Program Files\Steam\steamapps\common\CastleMiner Z"
@@ -25,7 +25,7 @@ games = {
         "VERSIONS_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Versions"),
         "INSTANCES_DIR": os.path.join(BASE_DIR, "Launcher", "CastleMiner Warfare", "Instances"),
         "EXE_NAME": "CastleMinerWarfare.exe",
-        "VANILLA_VERSION": "Installed Version",
+        "VANILLA_VERSION": "Steam Version",  # Base game version name.
         "POSSIBLE_PATHS": [
             r"C:\Program Files (x86)\Steam\steamapps\common\CastleMiner Warfare",
             r"C:\Program Files\Steam\steamapps\common\CastleMiner Warfare"
@@ -146,7 +146,8 @@ def write_instance_info(instance_path, info):
 def create_instance(instance_name, version, game):
     """
     Create a new instance with the given name and version.
-    Instead of using the base game cache, this copies all files from the version folder or installed game.
+    For modded instances, this copies all files from the version folder.
+    Note: The vanilla (Steam) version is handled as a special case and is not copied.
     It writes instance metadata and returns the instance path on success.
     If the instance already exists, returns "exists", or returns an error message if something goes wrong.
     """
@@ -156,10 +157,9 @@ def create_instance(instance_name, version, game):
     try:
         print(f"[INFO] Creating new instance '{instance_name}' with version '{version}'...")
         if version == game["VANILLA_VERSION"]:
-            # Use the installed game location for the vanilla version.
-            source_path = find_install_location(game)
-            if not source_path:
-                return "Installation for vanilla version not found!"
+            # This case is not used for creating a new instance;
+            # the Global Instance always refers directly to the installed game.
+            return "Global instance is not copied."
         else:
             source_path = os.path.join(game["VERSIONS_DIR"], version)
             if not os.path.exists(source_path):
@@ -177,7 +177,7 @@ def create_instance(instance_name, version, game):
 
 
 def launch_game(instance_path, game):
-    """Launch the game from the given instance folder and update last played."""
+    """Launch the game from the given instance folder (or base directory) and update last played."""
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
     with open(app_id_path, "w") as f:
@@ -188,9 +188,6 @@ def launch_game(instance_path, game):
         env["PATH"] = instance_path + ";" + env["PATH"]
         env["PWD"] = instance_path
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
-        info = get_instance_info(instance_path)
-        info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        write_instance_info(instance_path, info)
     else:
         messagebox.showerror("Error", "Game executable not found in the instance folder.")
 
@@ -200,7 +197,7 @@ def open_instance_folder(instance_path):
     if os.path.exists(instance_path):
         subprocess.Popen(["explorer", instance_path])
     else:
-        messagebox.showerror("Error", "Instance folder not found.")
+        messagebox.showerror("Error", "Folder not found.")
 
 
 def delete_instance(instance_path):
@@ -215,11 +212,11 @@ def delete_instance(instance_path):
 
 
 def list_instances(game):
-    """Return a list of instance folder names for the game."""
+    """Return a list of instance folder names for the game (excluding the Global Instance)."""
     if not os.path.exists(game["INSTANCES_DIR"]):
         os.makedirs(game["INSTANCES_DIR"])
     return [instance for instance in os.listdir(game["INSTANCES_DIR"])
-            if os.path.isdir(os.path.join(game["INSTANCES_DIR"], instance))]
+            if os.path.isdir(os.path.join(game["INSTANCES_DIR"], instance)) and instance != "Global Instance"]
 
 
 def get_version_options(game):
@@ -278,6 +275,17 @@ def new_version_dialog(game, parent):
     tk.Button(dialog, text="Create Version", command=on_create).pack(pady=10)
     dialog.wait_window()
     return None  # Folder is created if successful.
+
+
+def get_product_version(exe_path):
+    try:
+        import win32api
+        info = win32api.GetFileVersionInfo(exe_path, "\\")
+        ms = info['FileVersionMS']
+        ls = info['FileVersionLS']
+        return f"{(ms >> 16) & 0xFFFF}.{ms & 0xFFFF}.{(ls >> 16) & 0xFFFF}.{ls & 0xFFFF}"
+    except Exception:
+        return "Unknown"
 
 
 # ----------------------------
@@ -364,10 +372,15 @@ class GameTab(tk.Frame):
         error_label.pack(pady=5)
 
         tk.Label(dialog, text="Version:").pack(pady=5)
-        version_options = get_version_options(self.game)
+        # Exclude the 'Steam Version' (vanilla) from the options.
+        custom_versions = [v for v in get_version_options(self.game) if v != self.game["VANILLA_VERSION"]]
+        if not custom_versions:
+            messagebox.showerror("Error", "No mod versions available. Please create a new version first.")
+            dialog.destroy()
+            return
         selected_version = tk.StringVar(dialog)
-        selected_version.set(version_options[0])
-        version_menu = tk.OptionMenu(dialog, selected_version, *version_options)
+        selected_version.set(custom_versions[0])
+        version_menu = tk.OptionMenu(dialog, selected_version, *custom_versions)
         version_menu.pack(pady=5)
 
         def on_create():
@@ -398,6 +411,11 @@ class GameTab(tk.Frame):
     def populate_instances(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
+        # First, add the Global Instance if the base game installation is detected.
+        global_install = find_install_location(self.game)
+        if global_install:
+            self.tree.insert("", "end", values=("Global Instance", self.game["VANILLA_VERSION"], ""))
+        # Add modded instances (exclude any folder named "Global Instance")
         for instance in list_instances(self.game):
             instance_path = os.path.join(self.game["INSTANCES_DIR"], instance)
             info_file = os.path.join(instance_path, "instance_info.json")
@@ -453,24 +471,33 @@ class GameTab(tk.Frame):
         if selected:
             item = self.tree.item(selected[0])
             instance_name = item["values"][0]
-            return os.path.join(self.game["INSTANCES_DIR"], instance_name)
+            if instance_name == "Global Instance":
+                return find_install_location(self.game)
+            else:
+                return os.path.join(self.game["INSTANCES_DIR"], instance_name)
         return None
 
     def start_instance(self):
-        path = self.get_selected_instance_path()
-        if path:
-            launch_game(path, self.game)
-            info_file = os.path.join(path, "instance_info.json")
-            info = {}
-            if os.path.exists(info_file):
-                try:
-                    with open(info_file, "r") as f:
-                        info = json.load(f)
-                except Exception:
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            instance_name = item["values"][0]
+            path = self.get_selected_instance_path()
+            if path:
+                launch_game(path, self.game)
+                # For modded instances, update last played.
+                if instance_name != "Global Instance":
+                    info_file = os.path.join(path, "instance_info.json")
                     info = {}
-            info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            write_instance_info(path, info)
-            self.populate_instances()
+                    if os.path.exists(info_file):
+                        try:
+                            with open(info_file, "r") as f:
+                                info = json.load(f)
+                        except Exception:
+                            info = {}
+                    info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    write_instance_info(path, info)
+                self.populate_instances()
 
     def open_instance(self):
         path = self.get_selected_instance_path()
@@ -478,6 +505,13 @@ class GameTab(tk.Frame):
             open_instance_folder(path)
 
     def delete_instance(self):
+        selected = self.tree.selection()
+        if selected:
+            item = self.tree.item(selected[0])
+            instance_name = item["values"][0]
+            if instance_name == "Global Instance":
+                messagebox.showerror("Error", "Cannot delete the Global Instance.")
+                return
         path = self.get_selected_instance_path()
         if path and delete_instance(path):
             self.populate_instances()
