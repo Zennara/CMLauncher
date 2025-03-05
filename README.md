@@ -1,8 +1,10 @@
 
 # CMLauncher
-![Discord](https://img.shields.io/discord/566984586618470411?label=Discord)
+![Discord](https://img.shields.io/discord/566984586618470411?label=discord)
 ![GitHub License](https://img.shields.io/github/license/zennara/CMLauncher)
 ![GitHub Release](https://img.shields.io/github/v/release/zennara/CMLauncher)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/zennara/CMLauncher/total)
+
 
 A custom launcher for various games in the CastleMiner series that allows you to create seperate instances of the game for modded clients, or historical versions.
 
@@ -13,6 +15,13 @@ A custom launcher for various games in the CastleMiner series that allows you to
 2. Unzip the folder to your desired folder.
 3. Start the launcher by running `CMLauncher.bat`.
 4. Python will be prompted to install if it is not already.
+
+### Alternate Installation
+1. Install the lates release and unzip to desired folder.
+2. Install [Python](https://www.python.org/ftp/python/3.13.2/python-3.13.2-amd64.exe). Ensure to add the environment var to path:
+3. Run `main.py` with Python either by opening it with your install `python.exe` or from the terminal.
+
+    ![{82BC75E3-F1AC-4944-82D8-23201C9543E0}](https://github.com/user-attachments/assets/f0a7d235-eac4-44b8-852a-97f96a7da8ac)
     
 ## Terminology
 
