@@ -21,24 +21,8 @@ if %errorlevel% neq 0 (
     python -m ensurepip --default-pip
 )
 
-REM Set up virtual environment
-if not exist Code\.venv (
-    python -m venv Code\.venv
-)
-
-REM Activate virtual environment
-call Code\.venv\Scripts\activate
-
-REM Install required dependencies
-if exist requirements.txt (
-    pip install -r requirements.txt
-)
-
 REM Run the program without opening a new console window
-start /b pythonw Code\main.py
-
-REM Deactivate virtual environment
-call Code\.venv\Scripts\deactivate
+start /b python Code\main.py
 
 endlocal
 exit
