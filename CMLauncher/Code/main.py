@@ -127,16 +127,13 @@ def launch_game(instance_path, game, is_global=False):
     if os.path.exists(game_exe):
         print("[INFO] Launching game from instance:", instance_path)
 
-        # Ensure LOCALAPPDATA exists
-        local_appdata_path = os.path.join(instance_path, "AppData")
-
         # Set up the environment
         env = os.environ.copy()
 
         if not is_global:
             env["PATH"] = instance_path + ";" + env["PATH"]
             env["PWD"] = instance_path
-            env["USERPROFILE"] = local_appdata_path
+            env["USERPROFILE"] = instance_path
 
         # Launch the game
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
