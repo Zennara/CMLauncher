@@ -114,7 +114,7 @@ def create_instance(instance_name, version, game, force_copy=False):
         return str(e)
 
 
-def launch_game(instance_path, game):
+def launch_game(instance_path, game, is_global=False):
     """Launch the game from the given instance folder (or base directory) and update last played."""
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
@@ -132,10 +132,11 @@ def launch_game(instance_path, game):
 
         # Set up the environment
         env = os.environ.copy()
-        env["PATH"] = instance_path + ";" + env["PATH"]
-        env["PWD"] = instance_path
 
-        env["USERPROFILE"] = local_appdata_path
+        if not is_global:
+            env["PATH"] = instance_path + ";" + env["PATH"]
+            env["PWD"] = instance_path
+            env["USERPROFILE"] = local_appdata_path
 
         # Launch the game
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
@@ -791,11 +792,11 @@ class GameTab(tk.Frame):
             inst_name = item["values"][0]
             path = self.get_selected_instance_path()
             if path:
-                launch_game(path, self.game)
                 if inst_name == LOCAL_INSTANCE:
                     global_info = get_global_instance_info(self.game)
                     global_info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     write_global_instance_info(self.game, global_info)
+                    launch_game(path, self.game, is_global=True)
                 else:
                     info_file = os.path.join(path, "instance_info.json")
                     info = {}
@@ -807,6 +808,7 @@ class GameTab(tk.Frame):
                             info = {}
                     info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     write_instance_info(path, info)
+                    launch_game(path, self.game)
                 self.populate_instances()
 
     def open_instance(self):
