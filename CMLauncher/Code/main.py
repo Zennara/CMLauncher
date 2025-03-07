@@ -449,6 +449,9 @@ class GameTab(tk.Frame):
             self.create_widgets()
             self.populate_instances()
 
+    def on_instance_double_click(self, event):
+        self.start_instance()
+
     def load_no_install_ui(self):
         for widget in self.winfo_children():
             widget.destroy()
@@ -496,6 +499,7 @@ class GameTab(tk.Frame):
         self.tree.column("last_played", anchor="w", width=150)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
+        self.tree.bind("<Double-1>", self.on_instance_double_click)
 
         self.play_btn = tk.Button(self, text="   Play   ", command=self.start_instance, state=tk.DISABLED,
                                   font=("Arial", 18))
