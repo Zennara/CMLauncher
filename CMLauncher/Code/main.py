@@ -856,52 +856,6 @@ class GameTab(tk.Frame):
 
         listbox.bind("<Button-3>", show_version_menu)
 
-        def rename_selected_version():
-            sel = listbox.curselection()
-            if not sel:
-                custom_error(dialog, "Error", "No version selected.")
-                return
-            ver = listbox.get(sel[0])
-            if ver == LOCAL_VERSION:
-                custom_error(dialog, "Error", "Cannot rename the vanilla version.")
-                return
-
-            def validate_version_name(name):
-                if not name:
-                    return "Version name cannot be empty."
-                if name == LOCAL_VERSION:
-                    return "Cannot use 'Steam Version' as a version name."
-                if len(name) > 25:
-                    return "Version name cannot exceed 25 characters."
-                new_path = os.path.join(self.game["VERSIONS_DIR"], name)
-                if os.path.exists(new_path):
-                    return "A version with that name already exists."
-                return None
-
-            new_name = custom_validated_askstring(tk._default_root, "Rename Version", "Enter new version name:",
-                                                  validate_version_name)
-            if not new_name:
-                return
-            old_path = os.path.join(self.game["VERSIONS_DIR"], ver)
-            new_path = os.path.join(self.game["VERSIONS_DIR"], new_name)
-            try:
-                os.rename(old_path, new_path)
-                custom_info(tk._default_root, "Rename", f"Version renamed to '{new_name}'.")
-
-                # Update metadata in all instances that reference the old version:
-                def update_instances_version(game, old_ver, new_ver):
-                    for inst in list_instances(game):
-                        inst_path = os.path.join(game["INSTANCES_DIR"], inst)
-                        info = get_instance_info(inst_path)
-                        if info.get("version") == old_ver:
-                            info["version"] = new_ver
-                            write_instance_info(inst_path, info)
-
-                update_instances_version(self.game, ver, new_name)
-                refresh_list()
-            except Exception as e:
-                custom_error(tk._default_root, "Error", f"Failed to rename version: {e}")
-
         def delete_version():
             sel = listbox.curselection()
             if not sel:
