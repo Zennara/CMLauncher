@@ -114,19 +114,30 @@ def create_instance(instance_name, version, game, force_copy=False):
         return str(e)
 
 
-def launch_game(instance_path, game):
+def launch_game(instance_path, game, is_global=False):
     """Launch the game from the given instance folder (or base directory) and update last played."""
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
+
+    # Write the steam_appid.txt
     with open(app_id_path, "w") as f:
         app_id = game["APP_ID"]
         f.write(str(app_id))
+
     if os.path.exists(game_exe):
-        print("[INFO] Launching game from instance...")
+        print("[INFO] Launching game from instance:", instance_path)
+
+        # Set up the environment
         env = os.environ.copy()
-        env["PATH"] = instance_path + ";" + env["PATH"]
-        env["PWD"] = instance_path
+
+        if not is_global:
+            env["PATH"] = instance_path + ";" + env["PATH"]
+            env["PWD"] = instance_path
+            env["USERPROFILE"] = instance_path
+
+        # Launch the game
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
+
     else:
         custom_error(tk._default_root, "Error", "Game executable not found in the instance folder.")
 
@@ -435,6 +446,9 @@ class GameTab(tk.Frame):
             self.create_widgets()
             self.populate_instances()
 
+    def on_instance_double_click(self, event):
+        self.start_instance()
+
     def load_no_install_ui(self):
         for widget in self.winfo_children():
             widget.destroy()
@@ -482,6 +496,7 @@ class GameTab(tk.Frame):
         self.tree.column("last_played", anchor="w", width=150)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         self.tree.bind("<<TreeviewSelect>>", self.on_instance_select)
+        self.tree.bind("<Double-1>", self.on_instance_double_click)
 
         self.play_btn = tk.Button(self, text="   Play   ", command=self.start_instance, state=tk.DISABLED,
                                   font=("Arial", 18))
@@ -778,11 +793,11 @@ class GameTab(tk.Frame):
             inst_name = item["values"][0]
             path = self.get_selected_instance_path()
             if path:
-                launch_game(path, self.game)
                 if inst_name == LOCAL_INSTANCE:
                     global_info = get_global_instance_info(self.game)
                     global_info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     write_global_instance_info(self.game, global_info)
+                    launch_game(path, self.game, is_global=True)
                 else:
                     info_file = os.path.join(path, "instance_info.json")
                     info = {}
@@ -794,6 +809,7 @@ class GameTab(tk.Frame):
                             info = {}
                     info["last_played"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     write_instance_info(path, info)
+                    launch_game(path, self.game)
                 self.populate_instances()
 
     def open_instance(self):
@@ -840,52 +856,6 @@ class GameTab(tk.Frame):
             version_menu.grab_release()
 
         listbox.bind("<Button-3>", show_version_menu)
-
-        def rename_selected_version():
-            sel = listbox.curselection()
-            if not sel:
-                custom_error(dialog, "Error", "No version selected.")
-                return
-            ver = listbox.get(sel[0])
-            if ver == LOCAL_VERSION:
-                custom_error(dialog, "Error", "Cannot rename the vanilla version.")
-                return
-
-            def validate_version_name(name):
-                if not name:
-                    return "Version name cannot be empty."
-                if name == LOCAL_VERSION:
-                    return "Cannot use 'Steam Version' as a version name."
-                if len(name) > 25:
-                    return "Version name cannot exceed 25 characters."
-                new_path = os.path.join(self.game["VERSIONS_DIR"], name)
-                if os.path.exists(new_path):
-                    return "A version with that name already exists."
-                return None
-
-            new_name = custom_validated_askstring(tk._default_root, "Rename Version", "Enter new version name:",
-                                                  validate_version_name)
-            if not new_name:
-                return
-            old_path = os.path.join(self.game["VERSIONS_DIR"], ver)
-            new_path = os.path.join(self.game["VERSIONS_DIR"], new_name)
-            try:
-                os.rename(old_path, new_path)
-                custom_info(tk._default_root, "Rename", f"Version renamed to '{new_name}'.")
-
-                # Update metadata in all instances that reference the old version:
-                def update_instances_version(game, old_ver, new_ver):
-                    for inst in list_instances(game):
-                        inst_path = os.path.join(game["INSTANCES_DIR"], inst)
-                        info = get_instance_info(inst_path)
-                        if info.get("version") == old_ver:
-                            info["version"] = new_ver
-                            write_instance_info(inst_path, info)
-
-                update_instances_version(self.game, ver, new_name)
-                refresh_list()
-            except Exception as e:
-                custom_error(tk._default_root, "Error", f"Failed to rename version: {e}")
 
         def delete_version():
             sel = listbox.curselection()
