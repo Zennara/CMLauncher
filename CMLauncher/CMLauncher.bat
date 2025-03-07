@@ -14,13 +14,6 @@ if %errorlevel% neq 0 (
     del %PYTHON_INSTALLER%
 )
 
-REM Check if pip is installed
-pip --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo pip is not installed. Installing pip...
-    python -m ensurepip --default-pip
-)
-
 REM Run the program without opening a new console window
 start /b python Code\main.py
 
