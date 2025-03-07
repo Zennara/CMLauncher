@@ -118,15 +118,28 @@ def launch_game(instance_path, game):
     """Launch the game from the given instance folder (or base directory) and update last played."""
     game_exe = os.path.join(instance_path, game["EXE_NAME"])
     app_id_path = os.path.join(instance_path, "steam_appid.txt")
+
+    # Write the steam_appid.txt
     with open(app_id_path, "w") as f:
         app_id = game["APP_ID"]
         f.write(str(app_id))
+
     if os.path.exists(game_exe):
-        print("[INFO] Launching game from instance...")
+        print("[INFO] Launching game from instance:", instance_path)
+
+        # Ensure LOCALAPPDATA exists
+        local_appdata_path = os.path.join(instance_path, "AppData")
+
+        # Set up the environment
         env = os.environ.copy()
         env["PATH"] = instance_path + ";" + env["PATH"]
         env["PWD"] = instance_path
+
+        env["USERPROFILE"] = local_appdata_path
+
+        # Launch the game
         subprocess.Popen(game_exe, cwd=instance_path, env=env)
+
     else:
         custom_error(tk._default_root, "Error", "Game executable not found in the instance folder.")
 
